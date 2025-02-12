@@ -11,10 +11,10 @@ end
 function QUBODrivers.sample(opt::Optimizer{T}) where {T}
     n, L, Q, α, β = QUBOTools.qubo(opt, :sparse; sense = :min)
 
-    num_reads           = MOI.get(opt, Dirac3.NumberOfReads()); @assert 1 <= num_reads <= 100
-    api_token           = MOI.get(opt, Dirac3.APIToken())
-    device_type         = MOI.get(opt, Dirac3.DeviceType());    @assert device_type ∈ ("dirac-1",) #, "dirac-3")
-    # relaxation_schedule = MOI.get(opt, Dirac3.RelaxationSchedule())
+    num_reads           = MOI.get(opt, QCIOpt.NumberOfReads()); @assert 1 <= num_reads <= 100
+    api_token           = MOI.get(opt, QCIOpt.APIToken())
+    device_type         = MOI.get(opt, QCIOpt.DeviceType());    @assert device_type ∈ ("dirac-1",) #, "dirac-3")
+    # relaxation_schedule = MOI.get(opt, QCIOpt.RelaxationSchedule())
 
     qubo_matrix = np.array(diagm(L) + Symmetric(Q / 2))
     json_file   = PythonCall.pydict(

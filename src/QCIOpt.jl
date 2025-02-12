@@ -1,4 +1,4 @@
-module Dirac3
+module QCIOpt
 
 using LinearAlgebra
 
@@ -35,4 +35,4 @@ const QCI_URL = raw"https://api.qci-prod.com"
 
 include("sampler.jl")
 
-end # module Dirac3
+end # module QCIOpt
