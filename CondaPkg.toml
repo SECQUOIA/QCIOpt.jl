@@ -1,0 +1,4 @@
+
+[pip.deps]
+qci-client = "<5"
+numpy = ""
