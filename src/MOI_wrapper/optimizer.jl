@@ -32,6 +32,9 @@ function MOI.is_empty(solver::Optimizer{T})::Bool where {T}
     return true
 end
 
+# No incremental interface
+MOI.supports_incremental_interface(::Optimizer{T}) where {T} = false
+
 # [ ] Define optimize!(::ModelLike, ::ModelLike)
 function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
     # TODO: Call QCI, store results
