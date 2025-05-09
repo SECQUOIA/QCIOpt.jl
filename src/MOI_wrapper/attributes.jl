@@ -36,3 +36,5 @@ function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, device_type::Abstrac
 
     return nothing
 end
+
+MOI.supports(::Optimizer{T}, ::QCIOpt.DeviceType) where {T} = true
