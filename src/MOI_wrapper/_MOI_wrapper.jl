@@ -134,18 +134,7 @@ function MOI.empty!(settings::Settings{T}) where {T}
     return nothing
 end
 
-mutable struct Optimizer{T} <: MOI.AbstractOptimizer
-    variables::Variables{T}
-    objective::Objective{T}
 
-    settings::Settings{T}
-
-    function Optimizer{T}() where {T}
-        return new(Variables{T}(), Objective{T}(), Settings{T}())
-    end
-end
-
-Optimizer() = Optimizer{Float64}()
 
 function MOI.supports(opt::Optimizer{T}, attr::MOI.RawOptimizerAttribute) where {T}
     return attr.name ∈ ["api_token"]

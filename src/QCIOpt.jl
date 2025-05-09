@@ -31,8 +31,8 @@ end
 
 const QCI_URL = raw"https://api.qci-prod.com"
 
-# include("MOI_wrapper.jl")
+include("MOI_wrapper/MOI_wrapper.jl")
 
-include("sampler.jl")
+# include("sampler.jl")
 
 end # module QCIOpt

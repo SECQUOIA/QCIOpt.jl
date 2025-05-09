@@ -1,0 +1,3 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+QCIOpt = "6e1d72ef-e149-4f5c-9c69-bc0273b92dbc"
