@@ -20,19 +20,19 @@ function qci_device end
 function qci_device(spec::AbstractString; kwargs...)
     @assert qci_supports_device(spec)
 
-    type = QCI_DEVICE(spec)::Type{<:QCI_DEVICE}
+    type = qci_device_type(spec)::Type{<:QCI_DEVICE}
 
     return type(; kwargs...)
 end
 
 @doc raw"""
-    QCI_DEVICE(spec::AbstractString)
+    qci_device_type(spec::AbstractString)
 
 Returns the equivalent [`QCI_DEVICE`](@ref) type to a given `spec` string.
 """
-function QCI_DEVICE end
+function qci_device_type end
 
-QCI_DEVICE(spec::AbstractString) = get(QCI_DEVICES, String(spec), nothing)
+qci_device_type(spec::AbstractString) = get(QCI_DEVICES, String(spec), nothing)
 
 @doc raw"""
     qci_supports_device(spec::AbstractString)::Bool

@@ -38,31 +38,33 @@ MOI.supports_incremental_interface(::Optimizer{T}) where {T} = false
 
 # [ ] Define optimize!(::ModelLike, ::ModelLike)
 function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
-    # TODO: Call QCI, store results
-    
-    device_type = MOI.get(solver, QCIOpt.DeviceType())
+    api_token = MOI.get(solver, QCIOpt.APIToken())
 
-    if device_type == "dirac-1"
-        qci_optimize_dirac1(solver, model)
-    elseif device_type == "dirac-3"
-        qci_optimize_dirac3(solver, model)
-    else
-        error("Unsupported device type: $device_type")
-    end
+    isnothing(api_token) || error("QCI API Token is not defined.")
+
+    device = QCIOpt.qci_device(MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
+
+    QCIOpt.qci_optimize!(solver, model, device) # TODO: Call QCI
+
+    # TODO: Store results
 
     return nothing
 end
 
-@doc raw"""
-    qci_optimize_dirac1
-"""
-function qci_optimize_dirac1(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::QCI_DEVICE) where {T}
+    return nothing
 end
 
-@doc raw"""
-    qci_optimize_dirac3
-"""
-function qci_optimize_dirac3(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_1) where {T}
+
+end
+
+function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_2) where {T}
+
+end
+
+function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_3) where {T}
+
 end
 
 
