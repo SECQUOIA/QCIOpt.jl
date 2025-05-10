@@ -1,5 +1,9 @@
 # API Reference
 
+## Devices
+
 ```@docs
-QCIOpt.supports_device_type
+QCIOpt.QCI_DEVICE
+QCIOpt.qci_device
+QCIOpt.qci_supports_device
 ```

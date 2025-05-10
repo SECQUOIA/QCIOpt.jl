@@ -20,21 +20,32 @@ function MOI.get(solver::Optimizer{T}, ::QCIOpt.DeviceType) where {T}
     return solver.settings["device_type"]
 end
 
-@doc raw"""
-    supports_device_type(device_type::AbstractString)::Bool
+function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, spec::AbstractString) where {T}
+    qci_supports_device(spec) || throw(UnsupportedDevice(spec))
 
-Tells wether the solver supports a given `device_type`.
-"""
-function supports_device_type(device_type::AbstractString)::Bool
-    return device_type == "dirac-1" || device_type == "dirac-3"
-end
-
-function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, device_type::AbstractString) where {T}
-    @assert supports_device_type(device_type)
-
-    solver.settings["device_type"] = String(device_type)
+    solver.settings["device_type"] = String(spec)
 
     return nothing
 end
 
 MOI.supports(::Optimizer{T}, ::QCIOpt.DeviceType) where {T} = true
+
+struct APIToken <: MOI.AbstractOptimizerAttribute end
+
+function MOI.get(solver::Optimizer{T}, ::QCIOpt.APIToken) where {T}
+    return solver.settings["api_token"]
+end
+
+function MOI.set(solver::Optimizer{T}, ::QCIOpt.APIToken, api_token::AbstractString) where {T}
+    solver.settings["api_token"] = String(api_token)
+
+    return nothing
+end
+
+function MOI.set(solver::Optimizer{T}, ::QCIOpt.APIToken, ::Nothing) where {T}
+    solver.settings["api_token"] = nothing
+    
+    return nothing
+end
+
+MOI.supports(::Optimizer{T}, ::QCIOpt.APIToken) where {T} = true

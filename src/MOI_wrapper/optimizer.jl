@@ -2,7 +2,8 @@
 
 function default_settings()
     return Dict{String,Any}(
-        "device_type" => "dirac-3"
+        "device_type" => "dirac-3",
+        "api_token"   => QCI_TOKEN[],
     )
 end
 
