@@ -39,9 +39,32 @@ MOI.supports_incremental_interface(::Optimizer{T}) where {T} = false
 # [ ] Define optimize!(::ModelLike, ::ModelLike)
 function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
     # TODO: Call QCI, store results
+    
+    device_type = MOI.get(solver, QCIOpt.DeviceType())
+
+    if device_type == "dirac-1"
+        qci_optimize_dirac1(solver, model)
+    elseif device_type == "dirac-3"
+        qci_optimize_dirac3(solver, model)
+    else
+        error("Unsupported device type: $device_type")
+    end
 
     return nothing
 end
+
+@doc raw"""
+    qci_optimize_dirac1
+"""
+function qci_optimize_dirac1(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+end
+
+@doc raw"""
+    qci_optimize_dirac3
+"""
+function qci_optimize_dirac3(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+end
+
 
 # If your solver accepts primal or dual warm-starts, implement:
 # [ ]VariablePrimalStart
