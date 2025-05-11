@@ -1,8 +1,12 @@
 module QCIOpt
 
 using LinearAlgebra
+using JSON
 
 import MathOptInterface as MOI
+import DynamicPolynomials as DP
+
+const PV{V,M} = DP.Variable{V,M}
 
 const MOIU    = MOI.Utilities
 const VI      = MOI.VariableIndex
@@ -17,17 +21,31 @@ const SQF{T}  = MOI.ScalarQuadraticFunction
 
 import PythonCall
 
-const np   = PythonCall.pynew()
-const qcic = PythonCall.pynew()
+const np       = PythonCall.pynew()
+const qcic     = PythonCall.pynew()
+const json     = PythonCall.pynew()
+const requests = PythonCall.pynew()
 
+const QCI_URL   = raw"https://api.qci-prod.com"
 const QCI_TOKEN = Ref{Union{String,Nothing}}(nothing)
 
+function __init__()
+    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
+    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
+    PythonCall.pycopy!(json, PythonCall.pyimport("json"))
+    PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
+
+    __auth__()
+
+    return nothing
+end
+
 function __auth__()
-    qci_token = get(ENV, "CQI_TOKEN", nothing)
+    qci_token = get(ENV, "QCI_TOKEN", nothing)
 
     if isnothing(qci_token)
         @warn """
-        Environment variable 'CQI_TOKEN' is not defined.
+        Environment variable 'QCI_TOKEN' is not defined.
         You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
         """
     else
@@ -37,19 +55,22 @@ function __auth__()
     return nothing
 end
 
-function __init__()
-    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
-    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
+function jl_object(py_obj)
+    # Convert Python object to JSON string, then parse it into a Julia object
+    js_data = PythonCall.pyconvert(String, json.dumps(py_obj))
 
-    __auth__()
-
-    return nothing
+    return JSON.parse(js_data)
 end
 
-const QCI_URL = raw"https://api.qci-prod.com"
+function py_object(jl_obj)
+    # Convert Python object to JSON string, then parse it into a Julia object
+    js_data = PythonCall.pystr(JSON.json(jl_obj))
+
+    return json.loads(js_data)
+end
 
 # Device Interface
-include("devices/devices.jl")
+include("QCI_wrapper/QCI_wrapper.jl")
 
 # MOI Wrappers
 include("MOI_wrapper/MOI_wrapper.jl")

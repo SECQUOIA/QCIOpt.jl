@@ -5,12 +5,16 @@ version = "0.1.0"
 
 [deps]
 CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
+DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 
 [compat]
 CondaPkg = "=0.2.24"
+DynamicPolynomials = "0.6.1"
+JSON = "0.21.4"
 LinearAlgebra = "1.11.0"
 MathOptInterface = "1.35.2"
 PythonCall = "0.9.24"
