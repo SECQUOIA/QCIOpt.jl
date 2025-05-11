@@ -48,24 +48,36 @@ function default_settings()
     )
 end
 
+struct Sample{U,T}
+    x::Vector{U}
+    v::T
+    r::Int
+end
+
 mutable struct Optimizer{T} <: MOI.AbstractOptimizer
     # Variable Bounds
-    upper::Dict{VI,T}
     lower::Dict{VI,T}
+    upper::Dict{VI,T}
+    fixed::Dict{VI,T}
 
     # Variable Mapping
     source_map::VarMap{VI,DP.Variable}
     target_map::VarMap{DP.Variable,Int}
+
+    # Results
+    samples::Vector{Sample{T,T}}
 
     # Solver Settings
     settings::Dict{String,Any}
 
     function Optimizer{T}() where {T}
         return new{T}(
-            Dict{VI,T}(),              # upper
             Dict{VI,T}(),              # lower
+            Dict{VI,T}(),              # upper
+            Dict{VI,T}(),              # fixed
             VarMap{VI,DP.Variable}(),  # source_map
             VarMap{DP.Variable,Int}(), # target_map
+            Sample{T,T}[],           # samples
             default_settings(),        # settings
         )
     end
@@ -76,11 +88,14 @@ Optimizer(args...; kwargs...) = Optimizer{Float64}(args...; kwargs...)
 # [x] empty!
 function MOI.empty!(solver::Optimizer{T}) where {T}
     # TODO: Erase all model data (besides solver settings, keep those)
-    empty!(solver.upper)
     empty!(solver.lower)
+    empty!(solver.upper)
+    empty!(solver.fixed)
 
     empty!(solver.source_map)
     empty!(solver.target_map)
+
+    empty!(solver.samples)
 
     return solver
 end
@@ -88,11 +103,14 @@ end
 # [x] is_empty
 function MOI.is_empty(solver::Optimizer{T})::Bool where {T}
     # TODO: Check if solver is empty
-    isempty(solver.upper) || return false
     isempty(solver.lower) || return false
-
+    isempty(solver.upper) || return false
+    isempty(solver.fixed) || return false
+    
     isempty(solver.source_map) || return false
     isempty(solver.target_map) || return false
+    
+    isempty(solver.samples) || return false
 
     return true
 end
@@ -190,7 +208,117 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PV}) where {T}
     return p + f.constant
 end
 
-function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, ::DIRAC_3; api_token::AbstractString) where {T}
+function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, GT{T}}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+        li = MOI.get(model, MOI.ConstraintSet(), ci).lower
+
+        if haskey(solver.lower, vi)
+            solver.lower[vi] = max(solver.lower[vi], li)
+        else
+            solver.lower[vi] = li
+        end
+    end
+
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, LT{T}}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+        ui = MOI.get(model, MOI.ConstraintSet(), ci).upper
+
+        if haskey(solver.upper, vi)
+            solver.upper[vi] = max(solver.upper[vi], ui)
+        else
+            solver.upper[vi] = ui
+        end
+    end
+
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, MOI.Interval{T}}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+        li = MOI.get(model, MOI.ConstraintSet(), ci).lower
+        ui = MOI.get(model, MOI.ConstraintSet(), ci).upper
+
+        if haskey(solver.lower, vi)
+            solver.lower[vi] = max(solver.lower[vi], li)
+        else
+            solver.lower[vi] = li
+        end
+
+        if haskey(solver.upper, vi)
+            solver.upper[vi] = max(solver.upper[vi], ui)
+        else
+            solver.upper[vi] = ui
+        end
+    end
+
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, EQ{T}}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+        fi = MOI.get(model, MOI.ConstraintSet(), ci).value
+
+        solver.fixed[vi] = fi
+    end
+end
+
+function get_substitutions_and_levels(solver::Optimizer{T}) where {T}
+    # NOTE: This only works for the integer case!
+
+    subs = []
+    lvls = Dict{Int,Int}()
+    vars = Set{VI}(source(solver.source_map))
+
+    # Fix Variables
+    for (vi, fi) in solver.fixed
+        xi = var_map(solver.source_map, vi)
+
+        push!(subs, xi => fi)
+
+        delete!(vars, vi)
+    end
+
+    # Rescale Remaining Variables
+    for vi in vars
+        xi = var_map(solver.source_map, vi)
+        yi = var_map(solver.target_map, xi)
+
+        li = convert(Int, solver.lower[vi])
+        ui = convert(Int, solver.upper[vi])
+
+        push!(subs, xi => xi - li)
+        push!(lvls, yi => ui - li)
+    end
+
+    subs = first.(subs) => last.(subs)
+
+    return (subs, lvls)
+end
+
+qci_max_level(::DIRAC_3) = 954
+
+function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
+    adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
+
+    for sample in samples
+        x = Vector{T}(undef, n)
+
+        for i = 1:n
+            vi = var_inv(solver.source_map, var_inv(solver.target_map, i))
+
+            if haskey(solver.fixed, vi)
+                x[i] = solver.fixed[vi]
+
+                continue
+            end
+
+            li = solver.lower[vi]
+
+            x[i] = sample.x[i] + li
+        end
+
+        push!(adjusted_samples, Sample{T,T}(x, sample.v, sample.r))
+    end
+
+    return sort!(adjusted_samples; by = s -> s.v)
+end
+
+function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_3; api_token::AbstractString) where {T}
     n = MOI.get(model, MOI.NumberOfVariables())
 
     DP.@polyvar(x[1:n])
@@ -211,18 +339,25 @@ function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, ::DIRAC_3; ap
     #    where xᵢ ∈ [0, 1] (to be rescaled later according to variable precision)
     # 2. The new variable bounds, to be passed as qci_build_job_body(...; ..., num_levels = variable_bounds::Vector{Int})
     # 3. MAYBE: `undo(p)` function for undoing item 1.
+    retrieve_variable_bounds!(solver, model)
 
     poly = parse_polynomial(model, solver.source_map)
+    subs, lvls = get_substitutions_and_levels(solver)
+    poly = DP.subs(poly, subs)
+
+    num_levels = [haskey(lvls, i) ? lvls[i] : 0 for i = 1:n]
+
+    @assert sum(num_levels) <= qci_max_level(device)
 
     file     = qci_data_file(x -> var_map(solver.target_map, x), poly)
     file_id  = qci_upload_file(file; api_token)
-    job_body = qci_build_job_body(file_id; api_token) # TODO: Pass Parameters for this
+    job_body = qci_build_job_body(file_id; api_token, num_levels) # TODO: Pass Parameters for this
     response = qci_process_job(job_body; api_token)
-    samples  = qci_get_results(response)
+    samples  = qci_get_results(T, T, response)
 
-    sort!(samples; by = sample -> sample.v)
-
-    # TODO: Store results
+    # Store results
+    # TODO: Store solution metadata (QCI provides a lot of details about it!)
+    append!(solver.samples, readjust_variable_values(solver, n, samples))
 
     return nothing
 end

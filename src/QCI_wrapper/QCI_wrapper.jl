@@ -306,31 +306,21 @@ function qci_process_job(job_body; url = QCI_URL, api_token = QCI_TOKEN[])
     end
 end
 
-function qci_get_results(response)
+function qci_get_results(::Type{U}, ::Type{T}, response) where {U, T}
     @info response
 
-    if haskey(response, "results")
+    if response["status"] == qcic.JobStatus.COMPLETED.value
         res = response["results"]
 
         return map(
-            (x, v, r) -> Sample{Int,Float64}(
-                Vector{Int}(x),
-                Float64(v),
-                Int(r),
-            ),
+            (x, v, r) -> Sample{U,T}(Vector{U}(x), convert(T, v), r),
             res["solutions"],
             res["energies"],
             res["counts"],
         )
     else
-        return Sample{Int,Float64}[]
+        return Sample{U,T}[]
     end
-end
-
-struct Sample{U,T}
-    x::Vector{U}
-    v::T
-    r::Int
 end
 
 @doc raw"""
