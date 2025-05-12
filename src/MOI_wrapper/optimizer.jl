@@ -69,6 +69,7 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
 
     # Solver Settings
     settings::Dict{String,Any}
+    qci_client::Union{QCI.OptimizationClient, Nothing}      # RawSolver attribute
 
     function Optimizer{T}() where {T}
         return new{T}(
@@ -208,6 +209,11 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PV}) where {T}
     return p + f.constant
 end
 
+@doc raw"""
+    retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+
+    
+"""
 function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, GT{T}}())
         vi = MOI.get(model, MOI.ConstraintFunction(), ci)
@@ -257,6 +263,10 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
     end
 end
 
+@doc raw"""
+    get_substitutions_and_levels(solver::Optimizer{T}) where {T}
+    
+"""
 function get_substitutions_and_levels(solver::Optimizer{T}) where {T}
     # NOTE: This only works for the integer case!
 
@@ -292,6 +302,11 @@ end
 
 qci_max_level(::DIRAC_3) = 954
 
+@doc raw"""
+    readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
+
+    
+"""
 function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
 
@@ -318,6 +333,11 @@ function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vec
     return sort!(adjusted_samples; by = s -> s.v)
 end
 
+@doc raw"""
+    qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_3; api_token::AbstractString) where {T}
+
+    
+"""
 function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_3; api_token::AbstractString) where {T}
     n = MOI.get(model, MOI.NumberOfVariables())
 
