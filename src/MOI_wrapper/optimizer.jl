@@ -238,7 +238,12 @@ end
 @doc raw"""
     retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
-    
+Retrieve variable bounds from the model and store them in the solver. 
+- vi: variable index
+- li: lower bound
+- ui: upper bound
+- fi: fixed value
+- ci: constraint index
 """
 function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, GT{T}}())
@@ -267,6 +272,10 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
         vi = MOI.get(model, MOI.ConstraintFunction(), ci)
         li = MOI.get(model, MOI.ConstraintSet(), ci).lower
         ui = MOI.get(model, MOI.ConstraintSet(), ci).upper
+      
+        if li == ui 
+            solver.fixed[vi] = li
+        end
 
         if haskey(solver.lower, vi)
             solver.lower[vi] = max(solver.lower[vi], li)
@@ -291,7 +300,10 @@ end
 
 @doc raw"""
     get_substitutions_and_levels(solver::Optimizer{T}) where {T}
-    
+
+Only works for integer case! 
+lvls = upper and lower bounds of the variables
+subs = substitutions to be applied to the polynomial
 """
 function get_substitutions_and_levels(solver::Optimizer{T}) where {T}
     # NOTE: This only works for the integer case!
@@ -331,6 +343,7 @@ qci_max_level(::DIRAC_3) = 954
 @doc raw"""
     readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
 
+    
 """
 function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))

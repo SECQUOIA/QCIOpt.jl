@@ -15,20 +15,18 @@ end
 
 # [x] RawSolver	            Yes	No	No   - maybe there is none, should return nothing if so (or the optimizer itself/solver variable)
 function MOI.get(::Optimizer{T}, ::MOI.RawSolver) where {T}
-    return opt.qci_client
-end
-
-# [x] Silent	            Yes	Yes	Yes     - check on QCI on how to suppress output, return that it's not supported if not; 
-MOI.supports(::Optimizer{T}, ::MOI.Silent) where {T} = false
-
-function MOI.get(::Optimizer{T}, ::MOI.Silent) where {T}
+    # return opt.qci_client
     return nothing
 end
 
-# [ ] TimeLimitSec	        Yes	Yes	Yes     - check on QCI on how long you allow the solver to run, if not, no support also; might be device dependent; may need to differentiate among the solvers- if tricky do last. 
-### seems to be "timeout" parameter in the QCI API, but not sure how to implement
+# [ ] Silent	            Yes	Yes	Yes     - check on QCI on how to suppress output, return that it's not supported if not; 
+# TODO: use redirect_stdout to suppress output? 
+
+# [x] TimeLimitSec	        Yes	Yes	Yes     - check on QCI on how long you allow the solver to run, if not, no support also; might be device dependent; may need to differentiate among the solvers- if tricky do last. 
+MOI.supports(::Optimizer{T}, ::MOI.TimeLimitSec) where {T} = false
 
 # [ ] RawOptimizerAttribute	Yes	Yes	Yes     - select optimizer based on string? skip for now 
+MOI.supports(::Optimizer{T}, ::MOI.RawOptimizerAttribute) where {T} = false     # TODO: check for all possible attributes
 
 # [x] NumberOfThreads	    Yes	Yes	Yes  
 MOI.supports(::Optimizer{T}, ::MOI.NumberOfThreads) where {T} = false # thread is not configurable by the user 
