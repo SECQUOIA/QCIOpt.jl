@@ -3,8 +3,6 @@
 
 ## Available device types:
 
-- [`DIRAC_1`](@ref)
-- [`DIRAC_2`](@ref)
 - [`DIRAC_3`](@ref)
 
 """
@@ -242,6 +240,10 @@ function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::A
             end
         end
 
+        if length(idx) == 0 # skip constant terms
+            continue
+        end
+
         while length(idx) < degree
             push!(idx, 0)
         end
@@ -307,19 +309,23 @@ function qci_process_job(job_body; url = QCI_URL, api_token = QCI_TOKEN[])
 end
 
 function qci_get_results(::Type{U}, ::Type{T}, response) where {U, T}
-    @info response
-
     if response["status"] == qcic.JobStatus.COMPLETED.value
         res = response["results"]
 
-        return map(
+        samples = map(
             (x, v, r) -> Sample{U,T}(Vector{U}(x), convert(T, v), r),
             res["solutions"],
             res["energies"],
             res["counts"],
         )
+
+        return Solution{U,T}(samples, response)
+    elseif response["status"] == qcic.JobStatus.ERRORED.value
+        @error(response["job_info"]["job_result"]["error"])
+
+        return Solution{U,T}(Sample{U,T}[], response)
     else
-        return Sample{U,T}[]
+        return Solution{U,T}(Sample{U,T}[], response)
     end
 end
 

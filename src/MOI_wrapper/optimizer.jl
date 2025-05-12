@@ -48,10 +48,25 @@ function default_settings()
     )
 end
 
+@doc raw"""
+    Sample{U,T}
+
+- x: Solution Vector
+- v: Objective Function
+- r: Solution Multiplicity
+"""
 struct Sample{U,T}
     x::Vector{U}
     v::T
     r::Int
+end
+
+@doc raw"""
+
+"""
+struct Solution{U,T}
+    samples::Vector{Sample{U,T}}
+    metadata::Any
 end
 
 mutable struct Optimizer{T} <: MOI.AbstractOptimizer
@@ -69,7 +84,7 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
 
     # Solver Settings
     settings::Dict{String,Any}
-    qci_client::Union{QCI.OptimizationClient, Nothing}      # RawSolver attribute
+    # qci_client::Union{QCI.OptimizationClient, Nothing}      # RawSolver attribute
 
     function Optimizer{T}() where {T}
         return new{T}(
@@ -127,11 +142,13 @@ function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
     device = QCIOpt.qci_device(MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
 
+    @assert MOI.get(model, MOI.ObjectiveSense()) === MOI.MIN_SENSE "$(device) only supports minimizing"
+
     QCIOpt.qci_optimize!(solver, model, device; api_token) # TODO: Call QCI
 
     # TODO: Store results
 
-    return nothing
+    return (MOIU.identity_index_map(model), false)
 end
 
 # function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::QCI_DEVICE) where {T}
@@ -159,13 +176,13 @@ function parse_polynomial(model::MOI.ModelLike, vm::VarMap)
 end
 
 function parse_polynomial(v::VI, vm::VarMap{VI,PV})
-    p = DP.polynomial(_ -> zero(T), target(vm))
+    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
 
     return p + var_map(vm, v)
 end
 
 function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PV}) where {T}
-    p = DP.polynomial(_ -> zero(T), target(vm))
+    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
 
     for t in f.terms
         v = t.variable
@@ -180,7 +197,7 @@ function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PV}) where {T}
 end
 
 function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PV}) where {T}
-    p = DP.polynomial(_ -> zero(T), target(vm))
+    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
 
     for t in f.affine_terms
         v = t.variable
@@ -207,6 +224,15 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PV}) where {T}
     end
 
     return p + f.constant
+end
+
+function parse_polynomial(f::F, vm::VarMap{VI,PV}) where {F<:MOI.AbstractFunction}
+    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
+
+    # TODO: Interpret Nonlinear function
+    error()
+
+    return p
 end
 
 @doc raw"""
@@ -305,7 +331,6 @@ qci_max_level(::DIRAC_3) = 954
 @doc raw"""
     readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
 
-    
 """
 function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
@@ -314,7 +339,8 @@ function readjust_variable_values(solver::Optimizer{T}, n::Integer, samples::Vec
         x = Vector{T}(undef, n)
 
         for i = 1:n
-            vi = var_inv(solver.source_map, var_inv(solver.target_map, i))
+            yi = var_inv(solver.target_map, i)
+            vi = var_inv(solver.source_map, yi)
 
             if haskey(solver.fixed, vi)
                 x[i] = solver.fixed[vi]

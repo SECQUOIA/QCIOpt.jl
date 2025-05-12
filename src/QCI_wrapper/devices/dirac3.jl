@@ -1,5 +1,5 @@
 @doc raw"""
-    DIRAC_3
+    DIRAC_3 <: QCI_DIRAC <: QCI_DEVICE
 
 ## About
 
