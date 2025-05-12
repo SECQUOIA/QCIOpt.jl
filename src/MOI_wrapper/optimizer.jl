@@ -412,11 +412,11 @@ function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC
     file_id  = qci_upload_file(file; api_token)
     job_body = qci_build_job_body(file_id; api_token, num_levels) # TODO: Pass Parameters for this
     response = qci_process_job(job_body; api_token)
-    samples  = qci_get_results(T, T, response)
+    solution = qci_get_results(T, T, response)
 
     # Store results
     # TODO: Store solution metadata (QCI provides a lot of details about it!)
-    append!(solver.samples, readjust_variable_values(solver, n, samples))
+    append!(solver.samples, readjust_variable_values(solver, n, solution.samples))
 
     return nothing
 end
