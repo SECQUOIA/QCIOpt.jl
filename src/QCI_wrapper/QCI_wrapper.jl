@@ -35,7 +35,7 @@ qci_device_type(spec::AbstractString) = get(QCI_DEVICES, String(spec), nothing)
 @doc raw"""
     qci_supports_device(spec::AbstractString)::Bool
 
-Tells wether the solver supports a given device `spec`.
+Tells whether the solver supports a given device `spec`.
 """
 function qci_supports_device end
 
