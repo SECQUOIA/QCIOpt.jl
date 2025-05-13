@@ -387,15 +387,15 @@ function qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC
     # 3. MAYBE: `undo(p)` function for undoing item 1.
     retrieve_variable_bounds!(solver, model)
 
-    poly = parse_polynomial(model, solver.source_map)
+    source_poly = parse_polynomial(model, solver.source_map)
     subs, lvls = get_substitutions_and_levels(solver)
-    poly = DP.subs(poly, subs)
+    target_poly = DP.subs(source_poly, subs)
 
     num_levels = [haskey(lvls, i) ? lvls[i] : 0 for i = 1:n]
 
     @assert sum(num_levels) <= qci_max_level(device)
 
-    file     = qci_data_file(x -> var_map(solver.target_map, x), poly)
+    file     = qci_data_file(x -> var_map(solver.target_map, x), target_poly)
     file_id  = qci_upload_file(file; api_token)
     job_body = qci_build_job_body(file_id; api_token, num_levels) # TODO: Pass Parameters for this
     response = qci_process_job(job_body; api_token)
