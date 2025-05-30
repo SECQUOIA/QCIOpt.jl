@@ -131,26 +131,31 @@ function qci_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
     api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    silent::Bool                             = false,
 )
     return try
         client = qci_client(; url, api_token)
 
-        result = callback(client)
-
-        # TODO: Wrap-up
+        result = if silent
+            redirect_stdout(() -> callback(client), devnull)
+        else
+            callback(client)
+        end
 
         return result
     catch err
         qci_err = qci_parse_error(err)
 
-        !isnothing(qci_err) && rethrow(qci_err)
+        if !isnothing(qci_err)
+            rethrow(qci_err)
+        end
 
         rethrow(err)    
     end
 end
 
-function qci_get_allocations(; url = QCI_URL, api_token = QCI_TOKEN[])
-    alloc = QCIOpt.qci_client(; url, api_token) do client
+function qci_get_allocations(; url = QCI_URL, api_token = QCI_TOKEN[], silent = false)
+    alloc = QCIOpt.qci_client(; url, api_token, silent) do client
         return client.get_allocations() |> jl_object
     end
 
@@ -181,18 +186,18 @@ function qci_poly_data(indices::AbstractVector{V}, values::AbstractVector{T}) wh
         if first_iter
             term_size     = length(idx)
             num_variables = maximum(idx)
-            degrees       = filter(>(0), map(i -> count(j -> i == j, idx), 1:num_variables))
-            min_degree    = minimum(degrees)
-            max_degree    = maximum(degrees)
+            degree        = count(i -> i > 0, idx)
+            min_degree    = degree
+            max_degree    = degree
 
             first_iter    = false
         else
             @assert length(idx) == term_size
 
             num_variables = max(num_variables, maximum(idx))
-            degrees       = filter(>(0), map(i -> count(j -> i == j, idx), 1:num_variables))
-            min_degree    = min(min_degree, minimum(degrees))
-            max_degree    = max(max_degree, maximum(degrees))
+            degree        = count(i -> i > 0, idx)
+            min_degree    = min(min_degree, degree)
+            max_degree    = max(max_degree, degree)
         end
 
         push!(data, Dict{String,Any}("idx" => idx, "val" => val))
@@ -206,10 +211,10 @@ function qci_poly_data(indices::AbstractVector{V}, values::AbstractVector{T}) wh
     )
 end
 
-function qci_data_file(indices, values; file_name::AbstractString = "")
+function qci_data_file(indices, values; file_name::Union{AbstractString,Nothing} = nothing)
     poly = qci_poly_data(indices, values)
     file = Dict{String,Any}(
-        "file_name"   => file_name,
+        "file_name"   => something(file_name, ""),
         "file_config" => Dict{String,Any}(
             "polynomial" => Dict{String,Any}(
                 "num_variables" => poly.num_variables,
@@ -220,10 +225,16 @@ function qci_data_file(indices, values; file_name::AbstractString = "")
         )
     )
 
+    if !isnothing(file_name)
+        open(file_name, "w") do io
+            println(io, JSON.json(file, 4))
+        end
+    end
+
     return file
 end
 
-function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::AbstractString = "") where {_V,_M,T}
+function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::Union{AbstractString,Nothing} = nothing) where {_V,_M,T}
     indices = Vector{Int}[]
     values  = T[]
     degree  = DP.maxdegree(p)
@@ -255,14 +266,14 @@ function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::A
     return qci_data_file(indices, values; file_name)
 end
 
-function qci_data_file(p::DP.Polynomial{T}; file_name::AbstractString = "") where {T}
+function qci_data_file(p::DP.Polynomial{T}; file_name::Union{AbstractString,Nothing} = nothing) where {T}
     varmap = Dict{DP.Variable,Int}(x => i for (i, x) in enumerate(DP.variables(p)))
 
     return qci_data_file(x -> varmap[x]::Int, p; file_name)
 end
 
-function qci_upload_file(file; url = QCI_URL, api_token = QCI_TOKEN[])
-    response = qci_client(; url, api_token) do client
+function qci_upload_file(file; url = QCI_URL, api_token = QCI_TOKEN[], silent = false)
+    response = qci_client(; url, api_token, silent) do client
         client.upload_file(; file = py_object(file)) |> jl_object
     end
 
@@ -274,6 +285,7 @@ function qci_build_job_body(
     # Client Arguments
     url       = QCI_URL,
     api_token = QCI_TOKEN[],
+    silent    = false,
     # Job Arguments
     device_type::AbstractString   = "dirac-3",
     num_samples::Integer          = 5,
@@ -289,7 +301,7 @@ function qci_build_job_body(
         "num_levels"          => num_levels,
     )
 
-    return qci_client(; url, api_token) do client
+    return qci_client(; url, api_token, silent) do client
         client.build_job_body(;
             job_type   = job_type,
             job_name   = "",
@@ -300,16 +312,17 @@ function qci_build_job_body(
     end
 end
 
-function qci_process_job(job_body; url = QCI_URL, api_token = QCI_TOKEN[])
+function qci_process_job(job_body; url = QCI_URL, api_token = QCI_TOKEN[], verbose::Bool = true)
     return qci_client(; url, api_token) do client
         client.process_job(;
-            job_body = py_object(job_body)
+            job_body = py_object(job_body),
+            verbose,
         ) |> jl_object
     end
 end
 
 function qci_get_results(::Type{U}, ::Type{T}, response) where {U, T}
-    if response["status"] == qcic.JobStatus.COMPLETED.value
+    if response["status"] == "COMPLETED"
         res = response["results"]
 
         samples = map(
@@ -320,7 +333,7 @@ function qci_get_results(::Type{U}, ::Type{T}, response) where {U, T}
         )
 
         return Solution{U,T}(samples, response)
-    elseif response["status"] == qcic.JobStatus.ERRORED.value
+    elseif response["status"] == "ERRORED"
         @error(response["job_info"]["job_result"]["error"])
 
         return Solution{U,T}(Sample{U,T}[], response)
@@ -328,6 +341,31 @@ function qci_get_results(::Type{U}, ::Type{T}, response) where {U, T}
         return Solution{U,T}(Sample{U,T}[], response)
     end
 end
+
+const QCI_GENERIC_ATTRIBUTES = Set{String}([
+    "device_type",
+    "file_name",
+    "api_token",
+    "slient",
+])
+
+@doc raw"""
+    qci_supports_attribute
+"""
+function qci_supports_attribute end
+
+qci_supports_attribute(::QCI_DEVICE, ::AbstractString) = false
+
+function qci_default_attributes end
+
+qci_default_attributes(spec::AbstractString) = qci_default_attributes(qci_device(spec))
+qci_default_attributes(::QCI_DEVICE)         = qci_default_attributes()
+
+qci_default_attributes() = Dict{String,Any}(
+    "api_token" => QCI_TOKEN[],
+    "file_name" => nothing,
+    "silent"    => false,
+)
 
 @doc raw"""
     QCI_DIRAC <: QCI_DEVICE
