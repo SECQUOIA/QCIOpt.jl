@@ -21,7 +21,9 @@ function main()
                 @test result_count(model) >= 1
 
                 for i = 1:result_count(model)
-                    @show value.(x; result = i)
+                    @test length(value.(x; result = i)) == 3
+                    @test objective_value(model; result = i) >= 400.0
+                    @test MOI.get(model, QCIOpt.ResultMultiplicity(i)) >= 1
                 end
             end
         end
