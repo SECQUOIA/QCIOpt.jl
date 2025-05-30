@@ -82,3 +82,5 @@ function MOI.get(solver::Optimizer{T}, attr::ResultMultiplicity) where {T}
 
     return solver.solution.samples[attr.result_index].reads
 end
+
+MOI.is_set_by_optimize(::ResultMultiplicity) = true
