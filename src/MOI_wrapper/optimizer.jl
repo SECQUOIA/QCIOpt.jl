@@ -255,6 +255,22 @@ Retrieve variable bounds from the model and store them in the solver.
 - ci: constraint index
 """
 function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, MOI.ZeroOne}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+
+        if haskey(solver.lower, vi)
+            solver.lower[vi] = max(solver.lower[vi], zero(T))
+        else
+            solver.lower[vi] = zero(T)
+        end
+
+        if haskey(solver.upper, vi)
+            solver.upper[vi] = max(solver.upper[vi], one(T))
+        else
+            solver.upper[vi] = one(T)
+        end
+    end
+
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, GT{T}}())
         vi = MOI.get(model, MOI.ConstraintFunction(), ci)
         li = MOI.get(model, MOI.ConstraintSet(), ci).lower
