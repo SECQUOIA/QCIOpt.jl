@@ -51,7 +51,7 @@ end
 
 # [x] ObjectiveValue
 function MOI.get(solver::Optimizer{T}, attr::MOI.ObjectiveValue) where {T}
-    @assert 0 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
+    @assert 1 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
 
     # TODO: Check if this requires any extra adjustments, like evaluating the objective polynomial
     return solver.solution.samples[attr.result_index].value
@@ -65,10 +65,20 @@ end
 
 # [x] VariablePrimal
 function MOI.get(solver::Optimizer{T}, attr::MOI.VariablePrimal, vi::VI) where {T}
-    @assert 0 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
+    @assert 1 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
 
     xi = var_map(solver.source_map, vi)
     i  = var_map(solver.target_map, xi)
 
     return solver.solution.samples[attr.result_index].point[i]
+end
+
+struct ResultMultiplicity <: MOI.AbstractOptimizerAttribute
+    result_index::Int
+end
+
+function MOI.get(solver::Optimizer{T}, attr::ResultMultiplicity) where {T}
+    @assert 0 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
+
+    return solver.solution.samples[attr.result_index].reads
 end
