@@ -6,9 +6,9 @@ using JuMP
 
 model = Model(QCIOpt.Optimizer)
 
-@variable(model, 0 <= x[1:5] <= 10, Int)
+@variable(model, -10 <= x[1:5] <= 4, Int)
 
-@objective(model, Min, sum(i * (-1)^i * x[i] for i = 1:5))
+@objective(model, Min, sum((-1)^(i + j) * x[i] * x[j] for i = 1:3 for j = 1:3))
 
 model
 ```
