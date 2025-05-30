@@ -4,23 +4,25 @@ using QCIOpt
 
 function main()
     @testset "QCIOpt Tests" begin
-        @testset "Problem Format" begin
-            # from "https://learn.quantumcomputinginc.com/learn/module/introduction-to-dirac-3/dirac-3-developer-beginner-guide"
+        @testset "Authentication" begin
+            @test QCIOpt.__auth__()
+        end
 
-            let @polyvar(x[1:2])
-                v = [1, 2] # variables
-                f = []
-                l = [0, 0]
-                u = [4, 2]
-                p = (1/4) * (x[1]^4 + x[2]^4) - (5/3) * (x[1]^3 + x[2]^3) + 3 * (x[1]^2 + x[2]^2)
+        @testset "Simple Model" begin
+            let model = Model(QCIOpt.Optimizer)
+                @variable(model, -10 <= x[1:3] <= 10, Int)
 
-                subs, lvls = QCIOpt.get_substitutions_and_levels(
+                @objective(model, Min, sum((-1) ^ (i + j) * x[i] * x[j] for i = 1:3 for j = 1:3))
 
-                )
-                
-                q = QCIOpt.DP.subs(p, r)
+                # set_silent(model)
 
-                
+                optimize!(model)
+
+                @test result_count(model) >= 1
+
+                for i = 1:result_count(model)
+                    @show value.(x; result = i)
+                end
             end
         end
     end

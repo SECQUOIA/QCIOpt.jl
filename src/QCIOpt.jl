@@ -49,11 +49,13 @@ function __auth__()
         Environment variable 'QCI_TOKEN' is not defined.
         You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
         """
+
+        return false
     else
         QCI_TOKEN[] = qci_token
-    end
 
-    return nothing
+        return true
+    end
 end
 
 function jl_object(py_obj)
