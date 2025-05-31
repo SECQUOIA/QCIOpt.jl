@@ -341,14 +341,13 @@ end
 
 function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}, u::AbstractVector{T}) where {T}
     # NOTE: This only works for the integer case!
-    subs = map(
-        (x, l, u) -> (x => x - l),
-        vars,
-        l,
-        u,
-    )
+    subs = [xi => (xi - li) for (xi, li, ui) in zip(vars, l, u) if !iszero(l)]
 
-    return DP.subs(p, first.(subs) => last.(subs))
+    if isempty(subs)
+        return p
+    else
+        return DP.subs(p, first.(subs) => last.(subs))
+    end
 end
 
 qci_max_level(::DIRAC_3) = 954
