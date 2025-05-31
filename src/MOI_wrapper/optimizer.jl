@@ -326,7 +326,11 @@ function get_fix(solver::Optimizer{T}) where {T}
 end
 
 function fix_variables(p::Poly{T}, fix)::Poly{T} where {T}
-    return DP.subs(p, first.(fix) => last.(fix))
+    if isempty(fix)
+        return p
+    else
+        return DP.subs(p, first.(fix) => last.(fix))
+    end
 end
 
 function get_levels(solver::Optimizer{T}, num_vars::Integer) where {T}
