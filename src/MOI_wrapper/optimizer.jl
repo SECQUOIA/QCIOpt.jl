@@ -185,13 +185,13 @@ function parse_polynomial(model::MOI.ModelLike, vm::VarMap)
 end
 
 function parse_polynomial(v::VI, vm::VarMap{VI,PolyVar})
-    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
+    p = PolyTerm{T}[var_map(vm, v)]
 
-    return p + var_map(vm, v)
+    return DP.polynomial(p)
 end
 
 function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PolyVar}) where {T}
-    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
+    p = sizehint!(PolyTerm{T}[f.constant], length(f.terms))
 
     for t in f.terms
         v = t.variable
@@ -199,14 +199,14 @@ function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PolyVar}) where {T}
 
         x = var_map(vm, v)
 
-        p += c * x
+        push!(p, c * x)
     end
 
-    return p + f.constant
+    return DP.polynomial(p)
 end
 
 function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
-    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
+    p = sizehint!(PolyTerm{T}[f.constant], length(f.affine_terms) + length(f.quadratic_terms))
 
     for t in f.affine_terms
         v = t.variable
@@ -214,7 +214,7 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
 
         x = var_map(vm, v)
 
-        p += c * x
+        push!(p, c * x)
     end
 
     for t in f.quadratic_terms
@@ -226,22 +226,20 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
         x_2 = var_map(vm, v_2)
 
         if v_1 == v_2
-            p += (c/2) * (x_1 * x_2)
+            push!(p, (c/2) * (x_1 * x_2))
         else
-            p += c * (x_1 * x_2)
+            push!(p, c * (x_1 * x_2))
         end
     end
 
-    return p + f.constant
+    return DP.polynomial(p)
 end
 
 function parse_polynomial(f::F, vm::VarMap{VI,PolyVar}) where {F<:MOI.AbstractFunction}
-    p = DP.polynomial(_ -> zero(T), target(vm)) # zero of polynomial type with variables as in the model
-
     # TODO: Interpret Nonlinear function
-    error()
+    error("Nonlinear Functions are still not supported.")
 
-    return p
+    return nothing
 end
 
 @doc raw"""

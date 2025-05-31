@@ -6,8 +6,9 @@ using JSON
 import MathOptInterface as MOI
 import DynamicPolynomials as DP
 
-const PolyVar = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
-const Poly{T} = DP.Polynomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder},T}
+const PolyVar     = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
+const PolyTerm{T} = DP.Term{T,DP.Monomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}}
+const Poly{T}     = DP.Polynomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder},T}
 
 const MOIU    = MOI.Utilities
 const VI      = MOI.VariableIndex
