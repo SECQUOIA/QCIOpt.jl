@@ -67,10 +67,19 @@ function jl_object(py_obj)
 end
 
 function py_object(jl_obj)
-    # Convert Python object to JSON string, then parse it into a Julia object
-    js_data = PythonCall.pystr(JSON.json(jl_obj))
+    return PythonCall.Py(jl_obj)
+end
 
-    return json.loads(js_data)
+function py_object(jl_obj::AbstractDict{K,V}) where {K,V}
+    return PythonCall.pydict((py_object(k) => py_object(v)) for (k, v) in jl_obj)
+end
+
+function py_object(jl_obj::AbstractArray{T,N}) where {T<:Number,N}
+    return np.array(jl_obj)
+end
+
+function py_object(jl_obj::AbstractVector{T}) where {T}
+    return PythonCall.pylist(py_object.(jl_obj))
 end
 
 # Device Interface
@@ -79,6 +88,9 @@ include("QCI_wrapper/QCI_wrapper.jl")
 # MOI Wrappers
 include("MOI_wrapper/MOI_wrapper.jl")
 
-# include("sampler.jl")
+# Device-specific methods
+include("devices/dirac1.jl")
+# include("devices/dirac2.jl")
+include("devices/dirac3.jl")
 
 end # module QCIOpt

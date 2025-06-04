@@ -163,6 +163,42 @@ function qci_get_allocations(; url = QCI_URL, api_token = QCI_TOKEN[], silent = 
 end
 
 @doc raw"""
+    QCI_QUBO_DATA{T}
+"""
+struct QCI_QUBO_DATA{T}
+    data::Matrix{T}
+end
+
+function qci_qubo_data(Q::AbstractMatrix{T}) where {T}
+    m, n = size(Q)
+
+    @assert m == n
+    @assert issymmetric(Q)
+
+    return QCI_QUBO_DATA{T}(Q)
+end
+
+function qci_data_file(Q::AbstractMatrix{T}; file_name::Union{AbstractString,Nothing} = nothing) where {T}
+    qubo = qci_qubo_data(Q)
+    file = Dict{String,Any}(
+        "file_name"   => "smallest_objective.json",
+        "file_config" => Dict{String,Any}(
+            "qubo" => Dict{String,Any}(
+                "data" => np.array(qubo.data),
+            )
+        )
+    )
+
+    if !isnothing(file_name)
+        open(file_name, "w") do io
+            println(io, JSON.json(file, 4))
+        end
+    end
+
+    return file
+end
+
+@doc raw"""
     QCI_POLY_DATA{T}
 """
 struct QCI_POLY_DATA{T}
@@ -280,18 +316,18 @@ function qci_upload_file(file; url = QCI_URL, api_token = QCI_TOKEN[], silent = 
     return response["file_id"]
 end
 
-function qci_build_job_body(
+function qci_build_poly_job_body(
     file_id::AbstractString;
     # Client Arguments
     url       = QCI_URL,
     api_token = QCI_TOKEN[],
     silent    = false,
     # Job Arguments
-    device_type::AbstractString   = "dirac-3",
-    num_samples::Integer          = 5,
-    num_levels::AbstractVector{U} = Int[5], # This needs to be adjusted per-variable
-    relaxation_schedule::Integer  = 1,
-    job_type::AbstractString      = "sample-hamiltonian-integer",
+    device_type::AbstractString,
+    job_type::AbstractString,
+    relaxation_schedule::Integer = 1,
+    num_samples::Integer         = 100,
+    num_levels::AbstractVector{U}, # This needs to be adjusted per-variable
 ) where {U<:Integer}
     job_tags   = String[]
     job_params = Dict{String,Any}(
@@ -308,6 +344,34 @@ function qci_build_job_body(
             job_tags   = py_object(job_tags),
             job_params = py_object(job_params),
             polynomial_file_id = file_id,
+        ) |> jl_object
+    end
+end
+
+function qci_build_qubo_job_body(
+    file_id::AbstractString;
+    # Client Arguments
+    url       = QCI_URL,
+    api_token = QCI_TOKEN[],
+    silent    = false,
+    # Job Arguments
+    device_type::AbstractString,
+    job_type::AbstractString,
+    num_samples::Integer         = 100,
+)
+    job_tags   = String[]
+    job_params = Dict{String,Any}(
+        "device_type"         => device_type,
+        "num_samples"         => num_samples,
+    )
+
+    return qci_client(; url, api_token, silent) do client
+        client.build_job_body(;
+            job_type   = job_type,
+            job_name   = "",
+            job_tags   = py_object(job_tags),
+            job_params = py_object(job_params),
+            qubo_file_id = file_id,
         ) |> jl_object
     end
 end
@@ -372,6 +436,7 @@ qci_default_attributes() = Dict{String,Any}(
 """
 abstract type QCI_DIRAC <: QCI_DEVICE end
 
-# include("devices/dirac1.jl")
-# include("devices/dirac2.jl")
-include("devices/dirac3.jl")
+@doc raw"""
+    qci_is_free_tier
+"""
+qci_is_free_tier() = true # TODO: figure out if there is any specific call to the API that can tell this status
