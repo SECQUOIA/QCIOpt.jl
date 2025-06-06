@@ -1,4 +1,9 @@
+channels = ["anaconda", "conda-forge"]
+
+[deps]
+python = ">=3.8,<=3.12"
+requests = ""
 
 [pip.deps]
-qci-client = "<5"
+qci-client = ">=4.5"
 numpy = ""
