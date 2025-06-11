@@ -65,7 +65,7 @@ function qci_get_elapsed_time(status)
     run_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[run_key])))
     end_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[end_key])))
 
-    return Delta.seconds(end_ts - run_ts)
+    return Dates.seconds(end_ts - run_ts)
 end
 
 function MOI.get(solver::Optimizer{T}, ::MOI.SolveTimeSec) where {T}
