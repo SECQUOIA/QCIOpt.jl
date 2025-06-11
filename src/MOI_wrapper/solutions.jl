@@ -59,8 +59,8 @@ end
 
 # [ ] SolveTimeSec
 function qci_get_elapsed_time(status)
-    run_key = only(filter(key -> startwith(key, "running_at_"), keys(status)))
-    end_key = only(filter(key -> startwith(key, "completed_at_"), keys(status)))
+    run_key = only(filter(key -> startswith(key, "running_at_"), keys(status)))
+    end_key = only(filter(key -> startswith(key, "completed_at_"), keys(status)))
 
     run_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[run_key])))
     end_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[end_key])))
