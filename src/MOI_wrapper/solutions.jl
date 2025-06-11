@@ -58,9 +58,23 @@ function MOI.get(solver::Optimizer{T}, attr::MOI.ObjectiveValue) where {T}
 end
 
 # [ ] SolveTimeSec
+function qci_get_elapsed_time(status)
+    run_key = only(filter(key -> startwith(key, "running_at_"), keys(status)))
+    end_key = only(filter(key -> startwith(key, "completed_at_"), keys(status)))
+
+    run_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[run_key])))
+    end_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[end_key])))
+
+    return Delta.seconds(end_ts - run_ts)
+end
+
 function MOI.get(solver::Optimizer{T}, ::MOI.SolveTimeSec) where {T}
     # "total elapsed solution time (in seconds) as reported by the optimizer"
-    return NaN
+    if MOI.get(solver, MOI.TerminationStatus()) === MOI.LOCALLY_SOLVED # means it was completed successfully
+        return qci_get_elapsed_time(solver.solution.metadata["job_info"]["job_status"])
+    else
+        return NaN
+    end
 end
 
 # [x] VariablePrimal
