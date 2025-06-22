@@ -86,18 +86,13 @@ function Base.empty!(solution::Solution{U,T}) where {U,T}
 end
 
 mutable struct Optimizer{T} <: MOI.AbstractOptimizer
-    # Polynomial
-    poly::Any
-    qubo::Any
+    # Device
+    device::Any
 
     # Variable Bounds
     lower::Dict{VI,T}
     upper::Dict{VI,T}
     fixed::Dict{VI,T}
-
-    # Variable Mapping
-    source_map::VarMap{VI,PolyVar}
-    target_map::VarMap{PolyVar,Int}
 
     # Results
     solution::Solution{T,T}
@@ -108,8 +103,7 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
 
     function Optimizer{T}() where {T}
         return new{T}(
-            nothing,                           # poly
-            nothing,                           # qubo
+            nothing,                           # device
             Dict{VI,T}(),                      # lower
             Dict{VI,T}(),                      # upper
             Dict{VI,T}(),                      # fixed
@@ -125,8 +119,7 @@ Optimizer(args...; kwargs...) = Optimizer{Float64}(args...; kwargs...)
 
 # [x] empty!
 function MOI.empty!(solver::Optimizer{T}) where {T}
-    solver.poly = nothing
-    solver.qubo = nothing
+    solver.device = nothing
 
     empty!(solver.lower)
     empty!(solver.upper)
@@ -142,8 +135,7 @@ end
 
 # [x] is_empty
 function MOI.is_empty(solver::Optimizer{T})::Bool where {T}
-    isnothing(solver.poly) || return false
-    isnothing(solver.qubo) || return false
+    isnothing(solver.device) || return false
 
     isempty(solver.lower) || return false
     isempty(solver.upper) || return false

@@ -7,6 +7,8 @@ using Dates
 import MathOptInterface as MOI
 import DynamicPolynomials as DP
 
+const Maybe{T} = Union{T,Nothing}
+
 const PolyVar     = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
 const PolyTerm{T} = DP.Term{T,DP.Monomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}}
 const Poly{T}     = DP.Polynomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder},T}
@@ -22,6 +24,9 @@ const SAF{T}  = MOI.ScalarAffineFunction
 const SQT{T}  = MOI.ScalarQuadraticTerm
 const SQF{T}  = MOI.ScalarQuadraticFunction
 
+const QCI_URL   = raw"https://api.qci-prod.com"
+const QCI_TOKEN = Ref{Maybe{String}}(nothing)
+
 import PythonCall
 
 const np       = PythonCall.pynew()
@@ -29,24 +34,26 @@ const qcic     = PythonCall.pynew()
 const json     = PythonCall.pynew()
 const requests = PythonCall.pynew()
 
-const QCI_URL   = raw"https://api.qci-prod.com"
-const QCI_TOKEN = Ref{Union{String,Nothing}}(nothing)
-
 function __init__()
-    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
-    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
-    PythonCall.pycopy!(json, PythonCall.pyimport("json"))
-    PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
-
+    __load__()
     __auth__()
 
     return nothing
 end
 
-function __auth__()
-    qci_token = get(ENV, "QCI_TOKEN", nothing)
+function __load__()
+    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
+    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
+    PythonCall.pycopy!(json, PythonCall.pyimport("json"))
+    PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
 
-    if isnothing(qci_token)
+    return nothing
+end
+
+function __auth__()
+    QCI_TOKEN[] = get(ENV, "QCI_TOKEN", nothing)
+
+    if isnothing(QCI_TOKEN[])
         @warn """
         Environment variable 'QCI_TOKEN' is not defined.
         You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
@@ -54,7 +61,7 @@ function __auth__()
 
         return false
     else
-        QCI_TOKEN[] = qci_token
+        @show allocs = qci_get_allocations()
 
         return true
     end
@@ -83,11 +90,11 @@ function py_object(jl_obj::AbstractVector{T}) where {T}
     return PythonCall.pylist(py_object.(jl_obj))
 end
 
-# Device Interface
-include("QCI_wrapper/QCI_wrapper.jl")
+# QCI Interface
+include("QCI/wrapper.jl")
 
 # MOI Wrappers
-include("MOI_wrapper/MOI_wrapper.jl")
+include("MOI/wrapper.jl")
 
 # Device-specific methods
 include("devices/dirac1.jl")
