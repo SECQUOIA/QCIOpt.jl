@@ -3,6 +3,7 @@ module QCIOpt
 using LinearAlgebra
 using JSON
 using Dates
+using Suppressor
 
 import MathOptInterface as MOI
 import DynamicPolynomials as DP
@@ -61,7 +62,13 @@ function __auth__()
 
         return false
     else
-        @show allocs = qci_get_allocations()
+        return true
+
+        allocs = qci_get_allocations()
+
+        @info """
+        Successfull QCI Authentication. Remaining Dirac Allocation: $(allocs["dirac"]["seconds"]) seconds.
+        """
 
         return true
     end

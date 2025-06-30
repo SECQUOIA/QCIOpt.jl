@@ -1,12 +1,3 @@
-struct BufferPipe <: Base.AbstractPipe
-    io::IOBuffer
-    silent::Bool
-
-    BufferPipe(; silent::Bool = false) = new(IOBuffer(), silent)
-end
-
-Base.pipe_writer(bp::BufferPipe) = bp.io
-
 @doc raw"""
     qci_client_wrapper
 """
@@ -18,16 +9,14 @@ function qci_client_wrapper(
         silent::Bool = false,
     )
 
-    pipeio = BufferPipe()
+    output = Ref{String}("")
 
     return try
-        result = redirect_stdout(() -> callback(client), pipeio)
+        local result # https://github.com/JuliaIO/Suppressor.jl?tab=readme-ov-file#variable-scope
 
-        closewrite(pipeio)
+        output[] = @capture_out result = callback(client)
 
-        output = read(pipeio, String)
-
-        silent || print(output)
+        silent || print(output[])
 
         return (;
             result = result,
@@ -37,17 +26,13 @@ function qci_client_wrapper(
     catch err
         qcierr = qci_parse_error(err)
         
-        closewrite(pipeio)
-
-        output = read(pipeio, String)
-
-        silent || print(output)
+        silent || print(output[])
 
         isnothing(qcierr) && rethrow(err)
 
         return (;
             result = nothing,
-            output = nothing,
+            output = output,
             error  = qcierr,
         )
     end
@@ -67,7 +52,7 @@ function qci_auth_client(;
     return qcic.auth.client.AuthClient(; url, api_token)
 end
 
-function qci_auth_client(
+function qci_capture_auth_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
     api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
@@ -76,6 +61,17 @@ function qci_auth_client(
     client = qci_auth_client(; url, api_token)
 
     return qci_client_wrapper(callback, client; silent)
+end
+
+function qci_auth_client(
+    callback::Function;
+    url::AbstractString                      = QCI_URL,
+    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    silent::Bool                             = false,
+)
+    response = qci_capture_auth_client(callback; url, api_token, silent)
+
+    return response.result
 end
 
 @doc raw"""
@@ -101,7 +97,7 @@ function qci_client(;
     return qcic.QciClient(; url, api_token)
 end
 
-function qci_client(
+function qci_capture_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
     api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
@@ -110,6 +106,17 @@ function qci_client(
     client = qci_client(; url, api_token)
     
     return qci_client_wrapper(callback, client; silent)
+end
+
+function qci_client(
+    callback::Function;
+    url::AbstractString                      = QCI_URL,
+    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    silent::Bool                             = false,
+)
+    response = qci_capture_client(callback; url, api_token, silent)
+
+    return response.result
 end
 
 function qci_get_allocations(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = QCI_TOKEN[], silent::Bool = false)

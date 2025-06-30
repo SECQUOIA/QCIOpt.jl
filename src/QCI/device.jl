@@ -20,10 +20,10 @@ const QCI_DEVICES = Dict{String,Type{<:QCI_DEVICE}}()
 """
 function qci_device end
 
-function qci_device(spec::AbstractString; kwargs...)
+function qci_device(::Type{T}, spec::AbstractString; kwargs...) where {T}
     @assert qci_supports_device(spec)
 
-    type = qci_device_type(spec)::Type{<:QCI_DEVICE}
+    type = qci_device_type(T, spec)
 
     return type(; kwargs...)
 end
@@ -35,7 +35,13 @@ Returns the equivalent [`QCI_DEVICE`](@ref) type to a given `spec` string.
 """
 function qci_device_type end
 
-qci_device_type(spec::AbstractString) = get(QCI_DEVICES, String(spec), nothing)
+function qci_device_type(::Type{T}, spec::AbstractString) where {T}
+    @assert qci_supports_device(spec)
+
+    type = get(QCI_DEVICES, String(spec), nothing)
+
+    return type{T}
+end
 
 @doc raw"""
     qci_supports_device(spec::AbstractString)::Bool

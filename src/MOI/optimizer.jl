@@ -102,15 +102,15 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
     # qci_client::Union{QCI.OptimizationClient, Nothing}      # RawSolver attribute
 
     function Optimizer{T}() where {T}
+        device = DIRAC_3{T}()
+
         return new{T}(
-            nothing,                           # device
-            Dict{VI,T}(),                      # lower
-            Dict{VI,T}(),                      # upper
-            Dict{VI,T}(),                      # fixed
-            VarMap{VI,PolyVar}(),              # source_map
-            VarMap{PolyVar,Int}(),             # target_map
-            Solution{T,T}(),                   # solution
-            qci_default_attributes("dirac-3"), # attributes
+            device,                         # device
+            Dict{VI,T}(),                   # lower
+            Dict{VI,T}(),                   # upper
+            Dict{VI,T}(),                   # fixed
+            Solution{T,T}(),                # solution
+            qci_default_attributes(device), # attributes
         )
     end
 end
@@ -119,14 +119,11 @@ Optimizer(args...; kwargs...) = Optimizer{Float64}(args...; kwargs...)
 
 # [x] empty!
 function MOI.empty!(solver::Optimizer{T}) where {T}
-    solver.device = nothing
+    empty!(solver.device)
 
     empty!(solver.lower)
     empty!(solver.upper)
     empty!(solver.fixed)
-
-    empty!(solver.source_map)
-    empty!(solver.target_map)
 
     empty!(solver.solution)
 
@@ -135,14 +132,11 @@ end
 
 # [x] is_empty
 function MOI.is_empty(solver::Optimizer{T})::Bool where {T}
-    isnothing(solver.device) || return false
+    isempty(solver.device) || return false
 
     isempty(solver.lower) || return false
     isempty(solver.upper) || return false
     isempty(solver.fixed) || return false
-    
-    isempty(solver.source_map) || return false
-    isempty(solver.target_map) || return false
     
     isempty(solver.solution) || return false
 
@@ -158,11 +152,11 @@ function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
     isnothing(api_token) && error("QCI API Token is not defined.")
 
-    device = QCIOpt.qci_device(MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
+    # device = QCIOpt.qci_device(T, MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
 
     @assert MOI.get(model, MOI.ObjectiveSense()) === MOI.MIN_SENSE "$(device) only supports minimizing"
 
-    QCIOpt.qci_optimize!(solver, model, device; api_token)
+    QCIOpt.qci_optimize!(solver, solver.device, model; api_token)
 
     return (MOIU.identity_index_map(model), false)
 end
@@ -232,14 +226,14 @@ function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
     return DP.polynomial(p)
 end
 
-function parse_qubo_matrix(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
+function parse_qubo_matrix(f::SQF{T}, vm::VarMap{VI,Int}) where {T}
     n = length(vm)
     Q = zeros(T, n, n)
 
     for t in f.affine_terms
         v = t.variable
         c = t.coefficient
-        i = var_idx(vm, v)
+        i = var_map(vm, v)
 
         Q[i, i] += c
     end
@@ -248,8 +242,8 @@ function parse_qubo_matrix(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
         v_1 = t.variable_1
         v_2 = t.variable_2
         c   = t.coefficient
-        i_1 = var_idx(vm, v_1)
-        i_2 = var_idx(vm, v_2)
+        i_1 = var_map(vm, v_1)
+        i_2 = var_map(vm, v_2)
 
         if i_1 == i_2
             Q[i_1, i_2] += (c/2)
@@ -367,15 +361,6 @@ function fix_variables(p::Poly{T}, fix)::Poly{T} where {T}
     end
 end
 
-function get_levels(solver::Optimizer{T}, num_vars::Integer) where {T}
-    return map(
-        i -> let vi = var_inv(solver.source_map, var_inv(solver.target_map, i))
-            (floor(Int, solver.upper[vi]) - ceil(Int, solver.lower[vi])) + 1
-        end,
-        1:num_vars,
-    )
-end
-
 function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}, u::AbstractVector{T}) where {T}
     # NOTE: This only works for the integer case!
     subs = [xi => (xi - li) for (xi, li, ui) in zip(vars, l, u) if !iszero(l)]
@@ -385,90 +370,6 @@ function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::Abstrac
     else
         return DP.subs(p, first.(subs) => last.(subs))
     end
-end
-
-@doc raw"""
-    readjust_poly_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}    
-"""
-function readjust_poly_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}, sense) where {T}
-    @assert solver.poly isa DP.AbstractPolynomial{T}
-
-    adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
-
-    for sample in samples
-        point = Vector{T}(undef, n)
-        x     = Vector{PolyVar}(undef, n)
-
-        for i = 1:n
-            xi = var_inv(solver.target_map, i)
-            vi = var_inv(solver.source_map, xi)
-
-            if haskey(solver.fixed, vi)
-                point[i] = solver.fixed[vi]
-                x[i]     = xi
-
-                continue
-            end
-
-            li = solver.lower[vi]
-
-            point[i] = sample.point[i] + li
-            x[i]     = xi
-        end
-
-        value = if sense === MOI.MAX_SENSE
-            -solver.poly(x => point)
-        else # MOI.MIN_SENSE || MOI.FEASIBILITY_SENSE
-            solver.poly(x => point)
-        end
-
-        push!(adjusted_samples, Sample{T,T}(point, value, sample.reads))
-    end
-
-    return sort!(adjusted_samples; by = s -> (s.value, -s.reads))
-end
-
-@doc raw"""
-    readjust_qubo_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}    
-"""
-function readjust_qubo_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}, sense) where {T}
-    @assert solver.qubo isa Tuple
-
-    adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
-
-    for sample in samples
-        point = Vector{T}(undef, n)
-        x     = Vector{PolyVar}(undef, n)
-
-        for i = 1:n
-            xi = var_inv(solver.target_map, i)
-            vi = var_inv(solver.source_map, xi)
-
-            if haskey(solver.fixed, vi)
-                point[i] = solver.fixed[vi]
-                x[i]     = xi
-
-                continue
-            end
-
-            li = solver.lower[vi]
-
-            point[i] = sample.point[i] + li
-            x[i]     = xi
-        end
-
-        Q, c = solver.qubo
-
-        value = if sense === MOI.MAX_SENSE
-            -(point' * Q * point + c)
-        else # MOI.MIN_SENSE || MOI.FEASIBILITY_SENSE
-            (point' * Q * point + c)
-        end
-
-        push!(adjusted_samples, Sample{T,T}(point, value, sample.reads))
-    end
-
-    return sort!(adjusted_samples; by = s -> (s.value, -s.reads))
 end
 
 function copy_model_attributes!(solver, model)

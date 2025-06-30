@@ -20,8 +20,9 @@ qci_supports_attribute(::QCI_DEVICE, ::AbstractString) = false
 
 function qci_default_attributes end
 
-qci_default_attributes(spec::AbstractString) = qci_default_attributes(qci_device(spec))
-qci_default_attributes(::QCI_DEVICE)         = qci_default_attributes()
+qci_default_attributes(::Type{T}, spec::AbstractString) where {T} = qci_default_attributes(qci_device_type(T, spec))
+qci_default_attributes(::D) where {D<:QCI_DEVICE}                 = qci_default_attributes(D)
+qci_default_attributes(::Type{D}) where {D<:QCI_DEVICE}           = qci_default_attributes()
 
 qci_default_attributes() = Dict{String,Any}(
     "api_token" => QCI_TOKEN[],

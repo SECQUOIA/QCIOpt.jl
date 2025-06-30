@@ -81,14 +81,19 @@ end
 function MOI.get(solver::Optimizer{T}, attr::MOI.VariablePrimal, vi::VI) where {T}
     @assert 1 <= attr.result_index <= MOI.get(solver, MOI.ResultCount())
 
-    xi = var_map(solver.source_map, vi)
-    i  = var_map(solver.target_map, xi)
+    i = var_idx(solver.device.varmap, vi)
 
     return solver.solution.samples[attr.result_index].point[i]
 end
 
 struct ResultMultiplicity <: MOI.AbstractOptimizerAttribute
     result_index::Int
+
+    function ResultMultiplicity(result_index::Integer = 1)
+        @assert result_index >= 1
+        
+        return new(result_index)
+    end
 end
 
 function MOI.get(solver::Optimizer{T}, attr::ResultMultiplicity) where {T}
