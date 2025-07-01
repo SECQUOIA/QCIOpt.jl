@@ -56,7 +56,7 @@ function test_examples()
                     end
 
                     @test get_attribute(model, QCIOpt.ResultMultiplicity(i)) >= 1
-                    @test solve_time_sec(model) > 0.0
+                    @test solve_time(model) > 0.0
                 end
             end
         end # DIRAC-3 ■ QUBO
@@ -92,7 +92,7 @@ function test_examples()
                     end
 
                     @test get_attribute(model, QCIOpt.ResultMultiplicity(i)) >= 1
-                    @test solve_time_sec(model) > 0.0
+                    @test solve_time(model) > 0.0
                 end
             end
         end # DIRAC-3 ■ IP
