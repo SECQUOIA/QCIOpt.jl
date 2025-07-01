@@ -14,7 +14,9 @@ function qci_client_wrapper(
     return try
         local result # https://github.com/JuliaIO/Suppressor.jl?tab=readme-ov-file#variable-scope
 
-        output[] = @capture_out result = callback(client)
+        output[] = ""
+        
+        result = callback(client)
 
         silent || print(output[])
 
