@@ -53,6 +53,8 @@ function __init__()
 end
 
 function __load__()
+    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
+
     PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
     PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
     PythonCall.pycopy!(json, PythonCall.pyimport("json"))
@@ -62,8 +64,6 @@ function __load__()
 end
 
 function __auth__()
-    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
-
     if isnothing(qci_default_token())
         @warn """
         Environment variable 'QCI_TOKEN' is not defined.
