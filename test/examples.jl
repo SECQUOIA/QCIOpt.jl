@@ -14,6 +14,7 @@ function test_examples()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2]) # x[1] ⊻ x[2]
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
+                set_attribute(model, "num_samples", 3)
 
                 optimize!(model)
 
@@ -45,6 +46,7 @@ function test_examples()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2]) # 1 + x[1] ⊻ x[2]
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, "num_samples", 3)
 
                 optimize!(model)
 
@@ -81,6 +83,7 @@ function test_examples()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2])
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, "num_samples", 3)
 
                 optimize!(model)
 
