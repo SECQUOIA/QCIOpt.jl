@@ -25,7 +25,7 @@ qci_default_attributes(::D) where {D<:QCI_DEVICE}                 = qci_default_
 qci_default_attributes(::Type{D}) where {D<:QCI_DEVICE}           = qci_default_attributes()
 
 qci_default_attributes() = Dict{String,Any}(
-    "api_token" => QCI_TOKEN[],
+    "api_token" => qci_default_token(),
     "file_name" => nothing,
     "silent"    => false,
 )
@@ -33,7 +33,7 @@ qci_default_attributes() = Dict{String,Any}(
 @doc raw"""
     qci_is_free_tier
 """
-function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::AbstractString = QCI_TOKEN[])
+function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::AbstractString = qci_default_token())
     alloc = qci_get_allocations(; url, api_token)
 
     return !(alloc["dirac"]["paid"])

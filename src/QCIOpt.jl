@@ -28,6 +28,16 @@ const SQF{T}  = MOI.ScalarQuadraticFunction
 const QCI_URL   = raw"https://api.qci-prod.com"
 const QCI_TOKEN = Ref{Maybe{String}}(nothing)
 
+function qci_default_token!(api_token::Maybe{AbstractString})
+    QCI_TOKEN[] = api_token
+
+    return nothing
+end
+
+function qci_default_token()
+    return QCI_TOKEN[]
+end
+
 import PythonCall
 
 const np       = PythonCall.pynew()
@@ -52,9 +62,9 @@ function __load__()
 end
 
 function __auth__()
-    QCI_TOKEN[] = get(ENV, "QCI_TOKEN", nothing)
+    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
 
-    if isnothing(QCI_TOKEN[])
+    if isnothing(qci_default_token())
         @warn """
         Environment variable 'QCI_TOKEN' is not defined.
         You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`

@@ -47,7 +47,7 @@ function qci_auth_client end
 
 function qci_auth_client(;
         url::AbstractString              = QCI_URL,
-        api_token::Maybe{AbstractString} = QCI_TOKEN[],
+        api_token::Maybe{AbstractString} = qci_default_token(),
     )
     @assert !isnothing(api_token) "API Token was not provided."
 
@@ -57,7 +57,7 @@ end
 function qci_capture_auth_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
-    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    api_token::Union{AbstractString,Nothing} = qci_default_token(),
     silent::Bool                             = false,
 )
     client = qci_auth_client(; url, api_token)
@@ -68,7 +68,7 @@ end
 function qci_auth_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
-    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    api_token::Union{AbstractString,Nothing} = qci_default_token(),
     silent::Bool                             = false,
 )
     response = qci_capture_auth_client(callback; url, api_token, silent)
@@ -92,7 +92,7 @@ function qci_client end
 
 function qci_client(;
     url::AbstractString                      = QCI_URL,
-    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    api_token::Union{AbstractString,Nothing} = qci_default_token(),
 )
     @assert !isnothing(api_token) "API Token was not provided."
 
@@ -102,7 +102,7 @@ end
 function qci_capture_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
-    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    api_token::Union{AbstractString,Nothing} = qci_default_token(),
     silent::Bool                             = false,
 )
     client = qci_client(; url, api_token)
@@ -113,7 +113,7 @@ end
 function qci_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
-    api_token::Union{AbstractString,Nothing} = QCI_TOKEN[],
+    api_token::Union{AbstractString,Nothing} = qci_default_token(),
     silent::Bool                             = false,
 )
     response = qci_capture_client(callback; url, api_token, silent)
@@ -121,7 +121,7 @@ function qci_client(
     return response.result
 end
 
-function qci_get_allocations(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = QCI_TOKEN[], silent::Bool = false)
+function qci_get_allocations(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = qci_default_token(), silent::Bool = false)
     alloc = QCIOpt.qci_client(; url, api_token, silent) do client
         return client.get_allocations() |> jl_object
     end

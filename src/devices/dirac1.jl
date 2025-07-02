@@ -191,7 +191,7 @@ function qci_build_job_body(
     file_id::AbstractString,
     # Client Arguments
     url::AbstractString       = QCI_URL,
-    api_token::AbstractString = QCI_TOKEN[],
+    api_token::AbstractString = qci_default_token(),
     silent::Bool              = false,
     # Job Arguments
     device_type::AbstractString = "dirac-1",

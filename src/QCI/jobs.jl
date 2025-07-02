@@ -1,5 +1,5 @@
 
-function qci_upload_file(file; url = QCI_URL, api_token = QCI_TOKEN[], silent = false)
+function qci_upload_file(file; url = QCI_URL, api_token = qci_default_token(), silent = false)
     response = qci_client(; url, api_token, silent) do client
         client.upload_file(; file = py_object(file)) |> jl_object
     end
@@ -11,7 +11,7 @@ function qci_build_poly_job_body(
     file_id::AbstractString;
     # Client Arguments
     url       = QCI_URL,
-    api_token = QCI_TOKEN[],
+    api_token = qci_default_token(),
     silent    = false,
     # Job Arguments
     device_type::AbstractString,
@@ -53,7 +53,7 @@ function qci_build_job_body(::Val{device_type}, ::Val{job_type}; kwargs...) wher
     return nothing
 end
 
-function qci_process_job(job_body; url = QCI_URL, api_token = QCI_TOKEN[], verbose::Bool = true)
+function qci_process_job(job_body; url = QCI_URL, api_token = qci_default_token(), verbose::Bool = true)
     return qci_client(; url, api_token) do client
         client.process_job(;
             job_body = py_object(job_body),
