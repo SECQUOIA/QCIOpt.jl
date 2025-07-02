@@ -33,4 +33,8 @@ qci_default_attributes() = Dict{String,Any}(
 @doc raw"""
     qci_is_free_tier
 """
-qci_is_free_tier() = true # TODO: figure out if there is any specific call to the API that can tell this status
+function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::AbstractString = QCI_TOKEN[])
+    alloc = qci_get_allocations(; url, api_token)
+
+    return !(alloc["dirac"]["paid"])
+end
