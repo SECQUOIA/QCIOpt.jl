@@ -58,7 +58,7 @@ function MOI.supports(solver::Optimizer{T}, attr::MOI.RawOptimizerAttribute) whe
     if attr.name ∈ QCI_GENERIC_ATTRIBUTES
         return true
     else
-        device = QCIOpt.qci_device(MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
+        device = QCIOpt.qci_device(T, MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
 
         return qci_supports_attribute(device, attr.name)
     end
@@ -77,7 +77,7 @@ end
 function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, spec::AbstractString) where {T}
     qci_supports_device(spec) || throw(UnsupportedDevice(spec))
 
-    copy!(solver.attributes, qci_default_attributes(spec))
+    copy!(solver.attributes, qci_default_attributes(T, spec))
 
     return nothing
 end
