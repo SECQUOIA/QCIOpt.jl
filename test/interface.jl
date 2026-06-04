@@ -2,7 +2,7 @@ function test_interface()
     @testset "▶ Interface" begin
         @testset "Authentication" begin
             @test QCIOpt.__auth__()
-            
+
             QCIOpt.qci_is_free_tier() && @info "Running Tests in QCI Free Tier"
         end
 

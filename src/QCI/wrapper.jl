@@ -8,7 +8,7 @@ const QCI_GENERIC_ATTRIBUTES = Set{String}([
     "device_type",
     "file_name",
     "api_token",
-    "slient",
+    "silent",
 ])
 
 @doc raw"""
@@ -33,7 +33,7 @@ qci_default_attributes() = Dict{String,Any}(
 @doc raw"""
     qci_is_free_tier
 """
-function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::AbstractString = qci_default_token())
+function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = qci_default_token())
     alloc = qci_get_allocations(; url, api_token)
 
     return !(alloc["dirac"]["paid"])

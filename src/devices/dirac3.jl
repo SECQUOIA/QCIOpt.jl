@@ -3,8 +3,11 @@
 
 ## About
 
+DIRAC-3 samples polynomial models. The device stores a variable map, a parsed
+polynomial objective, and per-job configuration before submitting the job through
+the QCI client.
 """
-mutable struct DIRAC_3{T} <: QCI_DIRAC 
+mutable struct DIRAC_3{T} <: QCI_DIRAC
     varmap::VarMap{VI,PolyVar}
     poly::Maybe{Poly{T}}
     config::Dict{String,Any}
@@ -82,16 +85,6 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
 
     device.poly = parse_polynomial(model, device.varmap)
 
-    # fix  = get_fix(solver)
-    # poly = fix_variables(solver.poly, fix)
-    # vars = setdiff(x, first.(fix)) # free variables
-
-    # num_vars = length(vars)
-
-    # for j = 1:num_vars
-    #     var_map!(solver.target_map, vars[j], j)
-    # end
-
     poly = rescale_variables(
         device.poly,
         x,
@@ -123,7 +116,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     solution = qci_parse_results(T, T, response)
 
     # Store results
-    # TODO: Store solution metadata (QCI provides a lot of details about it!)
+    # TODO: Preserve job identifiers, timing, status, and provider diagnostics in metadata.
     solver.solution = Solution{T,T}(
         readjust_poly_values(solver, device, x, solution.samples, MOI.get(model, MOI.ObjectiveSense())),
         solution.metadata,
@@ -156,13 +149,6 @@ function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, sa
         for xi in vars
             vi = var_inv(device.varmap, xi)
             i  = var_idx(device.varmap, vi)
-
-            # if haskey(solver.fixed, vi)
-            #     point[i] = solver.fixed[vi]
-            #     x[i]     = xi
-
-            #     continue
-            # end
 
             li = solver.lower[vi]
 

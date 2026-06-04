@@ -1,3 +1,12 @@
+@doc raw"""
+    DeviceType()
+
+Optimizer attribute selecting the QCI device backend. Supported values are the
+keys returned by [`qci_supported_devices`](@ref), such as `"dirac-1"` and
+`"dirac-3"`.
+"""
+struct DeviceType <: MOI.AbstractOptimizerAttribute end
+
 #                           get set supports
 # [x] SolverName	        Yes	No	No
 function MOI.get(solver::Optimizer{T}, ::MOI.SolverName) where {T}
@@ -67,9 +76,6 @@ end
 # [x] NumberOfThreads	    Yes	Yes	Yes  
 MOI.supports(::Optimizer{T}, ::MOI.NumberOfThreads) where {T} = false # thread is not configurable by the user 
 
-# Custom Attributes
-struct DeviceType <: MOI.AbstractOptimizerAttribute end
-
 function MOI.get(solver::Optimizer{T}, ::QCIOpt.DeviceType) where {T}
     return solver.attributes["device_type"]
 end
@@ -77,7 +83,9 @@ end
 function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, spec::AbstractString) where {T}
     qci_supports_device(spec) || throw(UnsupportedDevice(spec))
 
-    copy!(solver.attributes, qci_default_attributes(T, spec))
+    solver.device = qci_device(T, spec)
+    empty!(solver.attributes)
+    merge!(solver.attributes, qci_default_attributes(solver.device))
 
     return nothing
 end

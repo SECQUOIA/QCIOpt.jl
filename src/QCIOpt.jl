@@ -25,11 +25,15 @@ const SAF{T}  = MOI.ScalarAffineFunction
 const SQT{T}  = MOI.ScalarQuadraticTerm
 const SQF{T}  = MOI.ScalarQuadraticFunction
 
-const QCI_URL   = raw"https://api.qci-prod.com"
+const QCI_URL = raw"https://api.qci-prod.com"
 const QCI_TOKEN = Ref{Maybe{String}}(nothing)
 
 function qci_default_token!(api_token::Maybe{AbstractString})
-    QCI_TOKEN[] = api_token
+    QCI_TOKEN[] = if isnothing(api_token) || isempty(strip(api_token))
+        nothing
+    else
+        String(api_token)
+    end
 
     return nothing
 end
@@ -63,23 +67,17 @@ function __load__()
     return nothing
 end
 
-function __auth__()
+function __auth__(; verbose::Bool = false)
     if isnothing(qci_default_token())
-        @warn """
-        Environment variable 'QCI_TOKEN' is not defined.
-        You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
-        """
+        if verbose
+            @warn """
+            Environment variable 'QCI_TOKEN' is not defined.
+            You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
+            """
+        end
 
         return false
     else
-        return true
-
-        allocs = qci_get_allocations()
-
-        @info """
-        Successfull QCI Authentication. Remaining Dirac Allocation: $(allocs["dirac"]["seconds"]) seconds.
-        """
-
         return true
     end
 end

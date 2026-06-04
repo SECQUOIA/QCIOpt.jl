@@ -1,5 +1,9 @@
 @doc raw"""
-    qci_client_wrapper
+    qci_client_wrapper(callback, client; silent = false)
+
+Run `callback(client)` and return a named tuple containing the callback result,
+captured output, and any parsed QCI error. Parsed provider errors are returned in
+the `error` field; other exceptions are rethrown.
 """
 function qci_client_wrapper end
 
@@ -14,9 +18,9 @@ function qci_client_wrapper(
     return try
         local result # https://github.com/JuliaIO/Suppressor.jl?tab=readme-ov-file#variable-scope
 
-        output[] = ""
-        
-        result = callback(client)
+        output[] = @capture_out begin
+            result = callback(client)
+        end
 
         silent || print(output[])
 
@@ -27,7 +31,7 @@ function qci_client_wrapper(
         )
     catch err
         qcierr = qci_parse_error(err)
-        
+
         silent || print(output[])
 
         isnothing(qcierr) && rethrow(err)
@@ -41,7 +45,11 @@ function qci_client_wrapper(
 end
 
 @doc raw"""
-    qci_auth_client
+    qci_auth_client(; url = QCI_URL, api_token = qci_default_token())
+    qci_auth_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Create a QCI authentication client, or run `callback` with one. The callback
+form returns the callback result after applying QCI error parsing.
 """
 function qci_auth_client end
 
@@ -77,14 +85,17 @@ function qci_auth_client(
 end
 
 @doc raw"""
-    qci_client()
+    qci_client(; url = QCI_URL, api_token = qci_default_token())
+    qci_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Create a QCI optimization client, or run `callback` with one. The callback form
+returns the callback result after applying QCI error parsing.
 
 ## Example
 
 ```julia
-QCIOpt.qci_client(QCIOpt.qci_device("dirac-3")) do (client, device)
-    @show device
-    @show client.get_allocations()
+QCIOpt.qci_client() do client
+    client.get_allocations()
 end
 ```
 """
@@ -106,7 +117,7 @@ function qci_capture_client(
     silent::Bool                             = false,
 )
     client = qci_client(; url, api_token)
-    
+
     return qci_client_wrapper(callback, client; silent)
 end
 
@@ -121,7 +132,17 @@ function qci_client(
     return response.result
 end
 
-function qci_get_allocations(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = qci_default_token(), silent::Bool = false)
+@doc raw"""
+    qci_get_allocations(; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Return the `"allocations"` object reported by the QCI API for the configured
+token.
+"""
+function qci_get_allocations(;
+    url::AbstractString = QCI_URL,
+    api_token::Maybe{AbstractString} = qci_default_token(),
+    silent::Bool = false,
+)
     alloc = QCIOpt.qci_client(; url, api_token, silent) do client
         return client.get_allocations() |> jl_object
     end

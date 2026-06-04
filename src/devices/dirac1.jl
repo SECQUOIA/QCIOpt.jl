@@ -1,8 +1,11 @@
 @doc raw"""
-    DIRAC_1
+    DIRAC_1{T} <: QCI_DIRAC
 
 ## About
 
+DIRAC-1 samples QUBO models. The device stores a variable map, the QUBO matrix,
+the constant offset, and per-job configuration before submitting the job through
+the QCI client.
 """
 mutable struct DIRAC_1{T} <: QCI_DIRAC
     varmap::VarMap{VI,Int}
@@ -16,7 +19,7 @@ mutable struct DIRAC_1{T} <: QCI_DIRAC
 end
 
 function Base.isempty(device::DIRAC_1{T}) where {T}
-    return isempty(device.varmap) && isnothing(device.poly)
+    return isempty(device.varmap) && isnothing(device.matrix) && isnothing(device.offset)
 end
 
 function Base.empty!(device::DIRAC_1{T}) where {T}
@@ -62,10 +65,10 @@ function assert_is_qubo_model(model::MOI.ModelLike)
     is_qubo = true
 
     let F = MOI.get(model, MOI.ObjectiveFunctionType())
-        is_qubo &= (F isa SQF || F isa SAF || F isa VI)
+        is_qubo &= (F <: SQF || F <: SAF || F <: VI)
     end
 
-    var_set = Set{VI}(MOI.ListOfVariableIndices())
+    var_set = Set{VI}(MOI.get(model, MOI.ListOfVariableIndices()))
     bin_set = sizehint!(Set{VI}(), length(var_set))
 
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI,MOI.ZeroOne}())
@@ -145,14 +148,6 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
         :num_samples => num_samples,
     )
 
-    @show device.varmap
-    @show device.matrix
-    @show device.offset
-    @show device.config
-    @show job_params
-
-    return nothing
-
     file     = qci_data_file(device.matrix; file_name)
     file_id  = qci_upload_file(file; api_token)
     job_body = qci_build_job_body(device; file_id, api_token, job_params...) # TODO: Pass Parameters for this
@@ -160,7 +155,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
     solution = qci_parse_results(T, T, response)
 
     # Store results
-    # TODO: Store solution metadata (QCI provides a lot of details about it!)
+    # TODO: Preserve job identifiers, timing, status, and provider diagnostics in metadata.
     solver.solution = readjust_solution(device, solution, MOI.get(solver, MOI.ObjectiveSense()))
 
     return nothing
@@ -174,7 +169,8 @@ function readjust_qubo_values(device::DIRAC_1{T}, samples::Vector{Sample{T,T}}, 
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
 
     for sample in samples
-        value = (sample.point' * device.matrix * sample.point + device.offset)
+        point = sample.point
+        value = (point' * device.matrix * point + device.offset)
 
         if sense === MOI.MAX_SENSE
             value *= -1
