@@ -91,7 +91,7 @@ struct ResultMultiplicity <: MOI.AbstractOptimizerAttribute
 
     function ResultMultiplicity(result_index::Integer = 1)
         @assert result_index >= 1
-        
+
         return new(result_index)
     end
 end

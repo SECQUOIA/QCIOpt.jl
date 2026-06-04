@@ -68,6 +68,8 @@ function __load__()
 end
 
 function __auth__(; verbose::Bool = false)
+    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
+
     if isnothing(qci_default_token())
         if verbose
             @warn """

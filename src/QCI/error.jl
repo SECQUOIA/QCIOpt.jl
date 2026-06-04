@@ -43,7 +43,7 @@ function qci_parse_error(err)
 
             let msg = only(args)
                 PythonCall.pyisinstance(msg, PythonCall.pytype(PythonCall.pystr(""))) || return nothing
-                
+
                 let m = match(
                         r"([0-9]+) Client Error: Unauthorized for url: (.*) with response body: (.*)",
                         PythonCall.pyconvert(String, msg),
@@ -63,5 +63,3 @@ function qci_parse_error(err)
 
     return nothing
 end
-
-

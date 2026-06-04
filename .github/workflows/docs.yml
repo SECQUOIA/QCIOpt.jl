@@ -10,17 +10,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
       - name: Develop DocumenterDiagrams.jl
         run: julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd())'
-      - uses: julia-actions/julia-buildpkg@latest
-        with: 
-            project: "docs"
-      - name: Build and deploy
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          project: "docs"
+      - name: Build docs
+        if: github.event_name == 'pull_request'
+        run: julia --project=docs docs/make.jl
+      - name: Build and deploy docs
+        if: github.event_name != 'pull_request'
         env:
-          QCI_TOKEN: ${{ secrets.QCI_TOKEN }}  # For authentication with QCI 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
         run: julia --project=docs docs/make.jl --deploy
