@@ -4,6 +4,10 @@ channels = ["anaconda", "conda-forge"]
 python = ">=3.8,<=3.12"
 requests = ""
 
+[deps.libffi]
+version = ">=3.4,<3.5"
+channel = "anaconda"
+
 [pip.deps]
 qci-client = ">=4.5"
 numpy = ""
