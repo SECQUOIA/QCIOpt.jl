@@ -54,6 +54,8 @@ import Pkg
 
     docs_build_step = workflow_step(docs, "Build docs")
     docs_deploy_step = workflow_step(docs, "Build and deploy docs")
+    docs_cleanup_delete_step = workflow_step(docscleanup, "Delete preview and history")
+    docs_cleanup_push_step = workflow_step(docscleanup, "Push changes")
     @test !isempty(docs_build_step)
     @test occursin("if: github.event_name == 'pull_request'", docs_build_step)
     @test occursin(r"(?m)^\s*run:\s*julia --project=docs docs/make\.jl\s*$", docs_build_step)
@@ -64,6 +66,13 @@ import Pkg
     @test occursin(r"(?m)^\s*run:\s*julia --project=docs docs/make\.jl --deploy\s*$", docs_deploy_step)
     @test occursin("GITHUB_TOKEN", docs_deploy_step)
     @test !occursin("QCI_TOKEN", docs)
+    @test !isempty(docs_cleanup_delete_step)
+    @test occursin("id: cleanup", docs_cleanup_delete_step)
+    @test occursin("if [ ! -d \"previews/PR\$PRNUM\" ]; then", docs_cleanup_delete_step)
+    @test occursin("deleted=false", docs_cleanup_delete_step)
+    @test occursin("deleted=true", docs_cleanup_delete_step)
+    @test !isempty(docs_cleanup_push_step)
+    @test occursin("if: steps.cleanup.outputs.deleted == 'true'", docs_cleanup_push_step)
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
     @test occursin(r"package-ecosystem:\s*[\"']?github-actions[\"']?", dependabot)
