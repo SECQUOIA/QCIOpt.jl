@@ -43,14 +43,18 @@ function __init__()
     return nothing
 end
 
-function __auth__()
+function __auth__(; verbose::Bool = false)
     qci_token = get(ENV, "QCI_TOKEN", nothing)
 
-    if isnothing(qci_token)
-        @warn """
-        Environment variable 'QCI_TOKEN' is not defined.
-        You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
-        """
+    if isnothing(qci_token) || isempty(strip(qci_token))
+        QCI_TOKEN[] = nothing
+
+        if verbose
+            @warn """
+            Environment variable 'QCI_TOKEN' is not defined.
+            You can still provide it as an attribute to `QCIOpt.Optimizer` before calling `optimize!`
+            """
+        end
 
         return false
     else
