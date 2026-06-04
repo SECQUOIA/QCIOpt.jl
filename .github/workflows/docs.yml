@@ -10,15 +10,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
       - name: Develop DocumenterDiagrams.jl
         run: julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd())'
-      - uses: julia-actions/julia-buildpkg@latest
-        with: 
-            project: "docs"
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          project: "docs"
       - name: Build and deploy
         env:
           QCI_TOKEN: ${{ secrets.QCI_TOKEN }}  # For authentication with QCI 
