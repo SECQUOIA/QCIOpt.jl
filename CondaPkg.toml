@@ -1,4 +1,16 @@
+channels = ["anaconda", "conda-forge"]
+
+[deps]
+python = ">=3.8,<=3.12"
+requests = ""
+
+# CondaPkg v0.2 does not support platform-scoped deps in this file.
+# Keep libffi aligned with the Anaconda Python build to avoid Windows
+# PythonCall _ctypes initialization failures.
+[deps.libffi]
+version = ">=3.4,<3.5"
+channel = "anaconda"
 
 [pip.deps]
-qci-client = "<5"
+qci-client = ">=4.5"
 numpy = ""

@@ -1,11 +1,16 @@
 using Test
 using JuMP
 using QCIOpt
-using QUBODrivers
 
-# const API_TOKEN = ""
+@testset "QCIOpt Tests" begin
+    include("test_utils.jl")
+    include("compat_metadata.jl")
+    include("auth.jl")
+    include("offline.jl")
 
-QUBODrivers.test(QCIOpt.Optimizer) do model
-    MOI.set(model, QCIOpt.NumberOfReads(), 1) # to go faster >>>
-    # MOI.set(model, QCIOpt.APIToken(), API_TOKEN)
+    if lowercase(get(ENV, "QCI_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")
+        include("live_qci.jl")
+    else
+        @info "Skipping live QCI service smoke tests. Set QCI_RUN_LIVE_TESTS=true and QCI_TOKEN to enable them."
+    end
 end

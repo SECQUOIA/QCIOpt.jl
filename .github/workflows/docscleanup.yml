@@ -9,21 +9,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           ref: gh-pages
 
       - name: Delete preview and history
+        id: cleanup
         run: |
             git config user.name  "Documenter.jl"
             git config user.email "documenter@juliadocs.github.io"
+            if [ ! -d "previews/PR$PRNUM" ]; then
+                echo "No preview directory found for PR$PRNUM"
+                echo "deleted=false" >> "$GITHUB_OUTPUT"
+                exit 0
+            fi
             git rm -rf "previews/PR$PRNUM"
             git commit -m "delete preview"
             git branch gh-pages-new $(echo "delete history" | git commit-tree HEAD^{tree})
+            echo "deleted=true" >> "$GITHUB_OUTPUT"
         env:
             PRNUM: ${{ github.event.number }}
 
       - name: Push changes
+        if: steps.cleanup.outputs.deleted == 'true'
         run: |
             git push --force origin gh-pages-new:gh-pages
 
