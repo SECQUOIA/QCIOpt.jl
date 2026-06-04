@@ -1,12 +1,18 @@
 using TOML
+import Pkg
 
 @testset "compat metadata" begin
     project = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))
     compat = project["compat"]
 
+    compat_allows_julia_110(compat_table, package) =
+        !haskey(compat_table, package) || v"1.10.0" in Pkg.Versions.VersionSpec(compat_table[package])
+
     @test compat["julia"] == "1.10"
-    @test !haskey(compat, "Dates")
-    @test !haskey(compat, "LinearAlgebra")
+    @test compat_allows_julia_110(compat, "Dates")
+    @test compat_allows_julia_110(compat, "LinearAlgebra")
+    @test compat_allows_julia_110(Dict("LinearAlgebra" => "1"), "LinearAlgebra")
+    @test !compat_allows_julia_110(Dict("LinearAlgebra" => "1.11.0"), "LinearAlgebra")
 
     ci = read(joinpath(@__DIR__, "..", ".github", "workflows", "ci.yml"), String)
 
