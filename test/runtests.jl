@@ -4,6 +4,7 @@ using QCIOpt
 
 @testset "QCIOpt Tests" begin
     include("test_utils.jl")
+    include("compat_metadata.jl")
     include("auth.jl")
     include("offline.jl")
 
