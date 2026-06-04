@@ -15,10 +15,13 @@ import Pkg
     @test !compat_allows_julia_110(Dict("LinearAlgebra" => "1.11.0"), "LinearAlgebra")
 
     workflow_dir = joinpath(@__DIR__, "..", ".github", "workflows")
-    ci = read(joinpath(workflow_dir, "ci.yml"), String)
-    docs = read(joinpath(workflow_dir, "docs.yml"), String)
-    docscleanup = read(joinpath(workflow_dir, "docscleanup.yml"), String)
-    all_workflows = join([ci, docs, docscleanup], "\n")
+    workflow_files =
+        filter(file -> endswith(file, ".yml") || endswith(file, ".yaml"), readdir(workflow_dir))
+    workflow_texts = Dict(file => read(joinpath(workflow_dir, file), String) for file in workflow_files)
+    ci = workflow_texts["ci.yml"]
+    docs = workflow_texts["docs.yml"]
+    docscleanup = workflow_texts["docscleanup.yml"]
+    all_workflows = join((workflow_texts[file] for file in workflow_files), "\n")
 
     function has_ci_matrix_entry(version, os)
         escaped_version = replace(version, "." => "\\.")
