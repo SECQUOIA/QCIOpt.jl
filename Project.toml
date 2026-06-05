@@ -14,9 +14,9 @@ PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 
 [compat]
-CondaPkg = "=0.2.24"
+CondaPkg = "=0.2.24, 0.2"
 DynamicPolynomials = "0.6.1"
-JSON = "0.21.4"
+JSON = "0.21.4, 1.6"
 MathOptInterface = "1.35.2"
 PythonCall = "0.9"
 Suppressor = "0.2.8"
