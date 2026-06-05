@@ -5,16 +5,52 @@ import Pkg
     project = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))
     docs_project = TOML.parsefile(joinpath(@__DIR__, "..", "docs", "Project.toml"))
     test_project = TOML.parsefile(joinpath(@__DIR__, "Project.toml"))
+    condapkg = TOML.parsefile(joinpath(@__DIR__, "..", "CondaPkg.toml"))
+    project_text = read(joinpath(@__DIR__, "..", "Project.toml"), String)
     compat = project["compat"]
+    deps = project["deps"]
 
     compat_allows_julia_110(compat_table, package) =
-        !haskey(compat_table, package) || v"1.10.0" in Pkg.Versions.VersionSpec(compat_table[package])
+        !haskey(compat_table, package) || v"1.10.0" in Pkg.Types.semver_spec(compat_table[package])
+
+    version_spec_allows(package, version) =
+        Pkg.Versions.VersionNumber(version) in Pkg.Types.semver_spec(compat[package])
 
     @test compat["julia"] == "1.10"
     @test compat_allows_julia_110(compat, "Dates")
     @test compat_allows_julia_110(compat, "LinearAlgebra")
     @test compat_allows_julia_110(Dict("LinearAlgebra" => "1"), "LinearAlgebra")
     @test !compat_allows_julia_110(Dict("LinearAlgebra" => "1.11.0"), "LinearAlgebra")
+
+    stdlib_deps = Set(["Dates", "LinearAlgebra"])
+    nonstdlib_deps = setdiff(Set(keys(deps)), stdlib_deps)
+    @test all(package -> haskey(compat, package), nonstdlib_deps)
+    @test all(package -> !startswith(compat[package], "="), nonstdlib_deps)
+
+    @test compat["CondaPkg"] == "0.2.24"
+    @test compat["DynamicPolynomials"] == "0.6"
+    @test compat["JSON"] == "0.21, 1.6"
+    @test compat["MathOptInterface"] == "1"
+    @test compat["PythonCall"] == "0.9"
+    @test compat["Suppressor"] == "0.2"
+    @test version_spec_allows("CondaPkg", "0.2.24")
+    @test version_spec_allows("CondaPkg", "0.2.36")
+    @test !version_spec_allows("CondaPkg", "0.3.0")
+    @test version_spec_allows("DynamicPolynomials", "0.6.6")
+    @test !version_spec_allows("DynamicPolynomials", "0.7.0")
+    @test version_spec_allows("JSON", "0.21.4")
+    @test version_spec_allows("JSON", "1.6.1")
+    @test !version_spec_allows("JSON", "1.5.2")
+    @test version_spec_allows("MathOptInterface", "1.51.1")
+    @test version_spec_allows("PythonCall", "0.9.34")
+    @test !version_spec_allows("PythonCall", "0.10.0")
+    @test version_spec_allows("Suppressor", "0.2.8")
+    @test occursin("Keep CondaPkg on 0.2.x", project_text)
+    @test occursin("PythonCall 0.9", project_text)
+    @test condapkg["deps"]["python"] == ">=3.8,<=3.12"
+    @test condapkg["deps"]["libffi"]["version"] == ">=3.4,<3.5"
+    @test condapkg["deps"]["libffi"]["channel"] == "anaconda"
+    @test condapkg["pip"]["deps"]["qci-client"] == ">=4.5"
 
     workflow_dir = joinpath(@__DIR__, "..", ".github", "workflows")
     workflow_files =

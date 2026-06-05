@@ -14,10 +14,13 @@ PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 
 [compat]
-CondaPkg = "=0.2.24"
-DynamicPolynomials = "0.6.1"
-JSON = "0.21.4"
-MathOptInterface = "1.35.2"
+# Keep CondaPkg on 0.2.x: CondaPkg.toml uses the v0.2 dependency schema and
+# the documented Anaconda libffi workaround for PythonCall on Windows.
+CondaPkg = "0.2.24"
+DynamicPolynomials = "0.6"
+JSON = "0.21, 1.6"
+MathOptInterface = "1"
+# PythonCall 0.9 owns the CondaPkg-backed Python environment used by qci-client.
 PythonCall = "0.9"
-Suppressor = "0.2.8"
+Suppressor = "0.2"
 julia = "1.10"

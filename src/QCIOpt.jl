@@ -88,7 +88,17 @@ function jl_object(py_obj)
     # Convert Python object to JSON string, then parse it into a Julia object
     js_data = PythonCall.pyconvert(String, json.dumps(py_obj))
 
-    return JSON.parse(js_data)
+    return _plain_json_container(JSON.parse(js_data))
+end
+
+_plain_json_container(value) = value
+
+function _plain_json_container(value::AbstractDict)
+    return Dict{String,Any}(string(k) => _plain_json_container(v) for (k, v) in value)
+end
+
+function _plain_json_container(value::AbstractVector)
+    return Any[_plain_json_container(v) for v in value]
 end
 
 function py_object(jl_obj)
