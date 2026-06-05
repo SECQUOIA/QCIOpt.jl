@@ -3,9 +3,12 @@ module QCIOpt
 using LinearAlgebra
 using JSON
 using Dates
+using Suppressor
 
 import MathOptInterface as MOI
 import DynamicPolynomials as DP
+
+const Maybe{T} = Union{T,Nothing}
 
 const PolyVar     = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
 const PolyTerm{T} = DP.Term{T,DP.Monomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}}
@@ -22,6 +25,23 @@ const SAF{T}  = MOI.ScalarAffineFunction
 const SQT{T}  = MOI.ScalarQuadraticTerm
 const SQF{T}  = MOI.ScalarQuadraticFunction
 
+const QCI_URL = raw"https://api.qci-prod.com"
+const QCI_TOKEN = Ref{Maybe{String}}(nothing)
+
+function qci_default_token!(api_token::Maybe{AbstractString})
+    QCI_TOKEN[] = if isnothing(api_token) || isempty(strip(api_token))
+        nothing
+    else
+        String(api_token)
+    end
+
+    return nothing
+end
+
+function qci_default_token()
+    return QCI_TOKEN[]
+end
+
 import PythonCall
 
 const np       = PythonCall.pynew()
@@ -29,26 +49,28 @@ const qcic     = PythonCall.pynew()
 const json     = PythonCall.pynew()
 const requests = PythonCall.pynew()
 
-const QCI_URL   = raw"https://api.qci-prod.com"
-const QCI_TOKEN = Ref{Union{String,Nothing}}(nothing)
-
 function __init__()
-    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
-    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
-    PythonCall.pycopy!(json, PythonCall.pyimport("json"))
-    PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
-
+    __load__()
     __auth__()
 
     return nothing
 end
 
+function __load__()
+    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
+
+    PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
+    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
+    PythonCall.pycopy!(json, PythonCall.pyimport("json"))
+    PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
+
+    return nothing
+end
+
 function __auth__(; verbose::Bool = false)
-    qci_token = get(ENV, "QCI_TOKEN", nothing)
+    qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
 
-    if isnothing(qci_token) || isempty(strip(qci_token))
-        QCI_TOKEN[] = nothing
-
+    if isnothing(qci_default_token())
         if verbose
             @warn """
             Environment variable 'QCI_TOKEN' is not defined.
@@ -58,8 +80,6 @@ function __auth__(; verbose::Bool = false)
 
         return false
     else
-        QCI_TOKEN[] = qci_token
-
         return true
     end
 end
@@ -87,11 +107,11 @@ function py_object(jl_obj::AbstractVector{T}) where {T}
     return PythonCall.pylist(py_object.(jl_obj))
 end
 
-# Device Interface
-include("QCI_wrapper/QCI_wrapper.jl")
+# QCI Interface
+include("QCI/wrapper.jl")
 
 # MOI Wrappers
-include("MOI_wrapper/MOI_wrapper.jl")
+include("MOI/wrapper.jl")
 
 # Device-specific methods
 include("devices/dirac1.jl")
