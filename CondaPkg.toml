@@ -4,7 +4,8 @@ channels = ["anaconda", "conda-forge"]
 python = ">=3.8,<=3.12"
 requests = ""
 
-# CondaPkg v0.2 does not support platform-scoped deps in this file.
+# CondaPkg is kept on the 0.2.x line because this environment file uses the
+# v0.2 dependency schema and does not support platform-scoped deps.
 # Keep libffi aligned with the Anaconda Python build to avoid Windows
 # PythonCall _ctypes initialization failures.
 [deps.libffi]

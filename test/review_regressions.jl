@@ -151,4 +151,26 @@
         @test err isa AssertionError
         @test occursin("only supports minimizing", sprint(showerror, err))
     end
+
+    @testset "JSON metadata conversion returns plain Julia containers" begin
+        py_metadata = QCIOpt.py_object(
+            Dict(
+                "job_info" => Dict(
+                    "id" => "job-123",
+                    "tags" => ["offline", "compat"],
+                ),
+                "results" => Dict(
+                    "energies" => [1.0, 2.0],
+                    "counts" => [3, 4],
+                ),
+            ),
+        )
+        metadata = QCIOpt.jl_object(py_metadata)
+
+        @test metadata isa Dict{String,Any}
+        @test metadata["job_info"] isa Dict{String,Any}
+        @test metadata["job_info"]["tags"] isa Vector{Any}
+        @test metadata["job_info"]["tags"] == ["offline", "compat"]
+        @test metadata["results"]["counts"] == [3, 4]
+    end
 end
