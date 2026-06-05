@@ -36,6 +36,19 @@ import Pkg
         return isnothing(step) ? "" : step.match
     end
 
+    function workflow_uses_step(text, uses)
+        pattern = Regex(
+            "(?ms)^\\s*- uses: " *
+            uses *
+            "\\s*\\n(.*?)(?=^\\s*- (?:name|uses): |\\z)",
+        )
+        step = match(pattern, text)
+        return isnothing(step) ? "" : step.match
+    end
+
+    enables_live_qci_tests(text) =
+        occursin(r"(?mi)^\s*QCI_RUN_LIVE_TESTS:\s*['\"]?(?:1|true|yes)['\"]?\s*$", text)
+
     @test has_ci_matrix_entry("1.10", "ubuntu-latest")
     @test has_ci_matrix_entry("1", "ubuntu-latest")
     @test has_ci_matrix_entry("1.10", "windows-latest")
@@ -77,10 +90,15 @@ import Pkg
     @test occursin("if: steps.cleanup.outputs.deleted == 'true'", docs_cleanup_push_step)
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
+    ci_runtest_step = workflow_uses_step(ci, "julia-actions/julia-runtest@v1")
     @test !occursin(r"(?i)CompatHelper", dependabot)
     @test !any(file -> occursin("compathelper", lowercase(file)), workflow_files)
     @test !occursin(r"(?i)CompatHelper", all_workflows)
-    @test !occursin("QCI_RUN_LIVE_TESTS", ci)
+    @test !isempty(ci_runtest_step)
+    @test !enables_live_qci_tests(ci_runtest_step)
+    @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: true\n")
+    @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: '1'\n")
+    @test !enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: false\n")
 
     function dependabot_updates(text)
         updates = String[]
