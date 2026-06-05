@@ -30,7 +30,7 @@ import Pkg
     @test compat["CondaPkg"] == "0.2.24"
     @test compat["DynamicPolynomials"] == "0.6"
     @test compat["JSON"] == "0.21, 1.6"
-    @test compat["MathOptInterface"] == "1"
+    @test compat["MathOptInterface"] == "1.35"
     @test compat["PythonCall"] == "0.9"
     @test compat["Suppressor"] == "0.2"
     @test version_spec_allows("CondaPkg", "0.2.24")
@@ -41,7 +41,9 @@ import Pkg
     @test version_spec_allows("JSON", "0.21.4")
     @test version_spec_allows("JSON", "1.6.1")
     @test !version_spec_allows("JSON", "1.5.2")
+    @test version_spec_allows("MathOptInterface", "1.35.0")
     @test version_spec_allows("MathOptInterface", "1.51.1")
+    @test !version_spec_allows("MathOptInterface", "1.34.0")
     @test version_spec_allows("PythonCall", "0.9.34")
     @test !version_spec_allows("PythonCall", "0.10.0")
     @test version_spec_allows("Suppressor", "0.2.8")

@@ -19,7 +19,8 @@ Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 CondaPkg = "0.2.24"
 DynamicPolynomials = "0.6"
 JSON = "0.21, 1.6"
-MathOptInterface = "1"
+# Keep a tested MOI lower bound while allowing the 1.x line.
+MathOptInterface = "1.35"
 # PythonCall 0.9 owns the CondaPkg-backed Python environment used by qci-client.
 PythonCall = "0.9"
 Suppressor = "0.2"
