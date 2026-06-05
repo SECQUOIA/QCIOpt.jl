@@ -3,6 +3,8 @@ import Pkg
 
 @testset "compat metadata" begin
     project = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))
+    docs_project = TOML.parsefile(joinpath(@__DIR__, "..", "docs", "Project.toml"))
+    test_project = TOML.parsefile(joinpath(@__DIR__, "Project.toml"))
     compat = project["compat"]
 
     compat_allows_julia_110(compat_table, package) =
@@ -33,6 +35,19 @@ import Pkg
         step = match(Regex("(?ms)^\\s*- name: " * name * "\\s*\\n(.*?)(?=^\\s*- name: |\\z)"), text)
         return isnothing(step) ? "" : step.match
     end
+
+    function workflow_uses_step(text, uses)
+        pattern = Regex(
+            "(?ms)^\\s*- uses: " *
+            uses *
+            "\\s*\\n(.*?)(?=^\\s*- (?:name|uses): |\\z)",
+        )
+        step = match(pattern, text)
+        return isnothing(step) ? "" : step.match
+    end
+
+    enables_live_qci_tests(text) =
+        occursin(r"(?mi)^\s*QCI_RUN_LIVE_TESTS:\s*['\"]?(?:1|true|yes)['\"]?\s*$", text)
 
     @test has_ci_matrix_entry("1.10", "ubuntu-latest")
     @test has_ci_matrix_entry("1", "ubuntu-latest")
@@ -75,7 +90,78 @@ import Pkg
     @test occursin("if: steps.cleanup.outputs.deleted == 'true'", docs_cleanup_push_step)
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
-    @test occursin(r"package-ecosystem:\s*[\"']?github-actions[\"']?", dependabot)
-    @test occursin(r"directory:\s*[\"']?/[\"']?", dependabot)
-    @test occursin(r"interval:\s*[\"']?monthly[\"']?", dependabot)
+    ci_runtest_step = workflow_uses_step(ci, "julia-actions/julia-runtest@v1")
+    @test !occursin(r"(?i)CompatHelper", dependabot)
+    @test !any(file -> occursin("compathelper", lowercase(file)), workflow_files)
+    @test !occursin(r"(?i)CompatHelper", all_workflows)
+    @test !isempty(ci_runtest_step)
+    @test !enables_live_qci_tests(ci_runtest_step)
+    @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: true\n")
+    @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: '1'\n")
+    @test !enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: false\n")
+
+    function dependabot_updates(text)
+        updates = String[]
+        buffer = IOBuffer()
+        in_update = false
+
+        for line in split(text, '\n'; keepempty = true)
+            if occursin(r"^\s*-\s+package-ecosystem:", line)
+                if in_update
+                    push!(updates, String(take!(buffer)))
+                end
+                in_update = true
+            end
+
+            in_update && println(buffer, line)
+        end
+
+        in_update && push!(updates, String(take!(buffer)))
+
+        return updates
+    end
+
+    function scalar_value(block, key)
+        value = match(
+            Regex("(?m)^\\s*(?:-\\s*)?" * key * ":\\s*[\"']?([^\"'\\n]+)[\"']?\\s*\$"),
+            block,
+        )
+        return isnothing(value) ? nothing : value.captures[1]
+    end
+
+    dependabot_entries = dependabot_updates(dependabot)
+
+    function updates_for(ecosystem, directory)
+        return filter(dependabot_entries) do update
+            scalar_value(update, "package-ecosystem") == ecosystem &&
+                scalar_value(update, "directory") == directory
+        end
+    end
+
+    function only_update_for(ecosystem, directory)
+        updates = updates_for(ecosystem, directory)
+        @test length(updates) == 1
+        return length(updates) == 1 ? only(updates) : ""
+    end
+
+    root_julia = only_update_for("julia", "/")
+    @test scalar_value(root_julia, "interval") == "weekly"
+    @test occursin("root-julia-dependencies:", root_julia)
+    @test occursin(r"(?m)^\s*-\s*[\"']?\*[\"']?\s*$", root_julia)
+
+    @test haskey(docs_project, "compat")
+    docs_julia = only_update_for("julia", "/docs")
+    @test scalar_value(docs_julia, "interval") == "weekly"
+    @test occursin("docs-julia-dependencies:", docs_julia)
+    @test occursin(r"(?m)^\s*-\s*[\"']?\*[\"']?\s*$", docs_julia)
+
+    if haskey(test_project, "compat")
+        test_julia = only_update_for("julia", "/test")
+        @test scalar_value(test_julia, "interval") == "weekly"
+    else
+        @test isempty(updates_for("julia", "/test"))
+    end
+
+    actions = only_update_for("github-actions", "/")
+    @test scalar_value(actions, "interval") == "monthly"
 end
