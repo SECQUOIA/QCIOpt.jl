@@ -57,6 +57,33 @@
         @test QCIOpt.assert_is_qubo_model(model) === nothing
     end
 
+    @testset "DIRAC-1 load path stays offline" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+
+        MOI.add_constraint(model, x[1], MOI.ZeroOne())
+        MOI.add_constraint(model, x[2], MOI.ZeroOne())
+
+        f = MOI.ScalarQuadraticFunction(
+            [MOI.ScalarQuadraticTerm(-2.0, x[1], x[2])],
+            [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
+            1.0,
+        )
+
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        solver = QCIOpt.Optimizer()
+        MOI.set(solver, QCIOpt.DeviceType(), "dirac-1")
+        MOI.set(solver, MOI.RawOptimizerAttribute("api_token"), "dummy-token")
+
+        device = getfield(solver, :device)
+
+        @test QCIOpt.qci_load!(solver, device, model; api_token = "dummy-token") === nothing
+        @test device.matrix == [1.0 -1.0; -1.0 1.0]
+        @test device.offset == 1.0
+    end
+
     @testset "DIRAC-1 result readjustment" begin
         device = QCIOpt.DIRAC_1{Float64}()
         v1 = MOI.VariableIndex(1)
@@ -84,5 +111,44 @@
         )
 
         @test QCIOpt.qci_get_elapsed_time(status) == 3.0
+    end
+
+    @testset "DIRAC-3 fixed variable bounds" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+
+        MOI.add_constraint(model, x[1], MOI.EqualTo(1.0))
+        MOI.add_constraint(model, x[2], MOI.ZeroOne())
+
+        solver = QCIOpt.Optimizer()
+
+        QCIOpt.retrieve_variable_bounds!(solver, model)
+
+        @test solver.fixed[x[1]] == 1.0
+        @test solver.lower[x[1]] == 1.0
+        @test solver.upper[x[1]] == 1.0
+        @test solver.lower[x[2]] == 0.0
+        @test solver.upper[x[2]] == 1.0
+    end
+
+    @testset "Unsupported maximization message" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variable(model)
+
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(x)}(), x)
+
+        solver = QCIOpt.Optimizer()
+        MOI.set(solver, MOI.RawOptimizerAttribute("api_token"), "dummy-token")
+
+        err = try
+            MOI.optimize!(solver, model)
+            nothing
+        catch err
+            err
+        end
+
+        @test err isa AssertionError
+        @test occursin("only supports minimizing", sprint(showerror, err))
     end
 end

@@ -154,7 +154,7 @@ function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
     # device = QCIOpt.qci_device(T, MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
 
-    @assert MOI.get(model, MOI.ObjectiveSense()) === MOI.MIN_SENSE "$(device) only supports minimizing"
+    @assert MOI.get(model, MOI.ObjectiveSense()) === MOI.MIN_SENSE "$(solver.device) only supports minimizing"
 
     QCIOpt.qci_optimize!(solver, solver.device, model; api_token)
 
@@ -338,6 +338,8 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
         fi = MOI.get(model, MOI.ConstraintSet(), ci).value
 
         solver.fixed[vi] = fi
+        solver.lower[vi] = fi
+        solver.upper[vi] = fi
     end
 end
 

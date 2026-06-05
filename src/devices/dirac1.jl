@@ -94,8 +94,12 @@ function load_attributes!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.M
     end
 
     for attr in MOI.get(model, MOI.ListOfOptimizerAttributesSet())
-        if attr isa RawOptimizerAttribute
-            qci_config!(device, attr.name, MOI.get(model, attr))
+        if attr isa MOI.RawOptimizerAttribute
+            if attr.name ∈ QCI_GENERIC_ATTRIBUTES
+                MOI.set(solver, attr, MOI.get(model, attr))
+            else
+                qci_config!(device, attr.name, MOI.get(model, attr))
+            end
         else
             MOI.set(solver, attr, MOI.get(model, attr))
         end
@@ -104,14 +108,25 @@ function load_attributes!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.M
     return nothing
 end
 
+function has_fixed_variables(model::MOI.ModelLike, ::Type{T}) where {T}
+    !isempty(MOI.get(model, MOI.ListOfConstraintIndices{VI,EQ{T}}())) && return true
+
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI,MOI.Interval{T}}())
+        set = MOI.get(model, MOI.ConstraintSet(), ci)
+
+        set.lower == set.upper && return true
+    end
+
+    return false
+end
+
 function qci_load!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
     for (i, vi) in enumerate(MOI.get(model, MOI.ListOfVariableIndices()))
         var_map!(device.varmap, vi, i)
     end
 
     assert_is_qubo_model(model)
-
-    qci_config!(device, "api_token", api_token)
+    has_fixed_variables(model, T) && error("DIRAC-1 does not support fixed variables.")
 
     load_attributes!(solver, device, model)
 
@@ -122,11 +137,6 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.ModelLik
 
         parse_qubo_matrix(f, device.varmap)
     end
-
-    # TODO: Implement fixed variables
-    fix = get_fix(solver)
-
-    @assert isempty(fix)
 
     return nothing
 end
