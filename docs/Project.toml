@@ -6,5 +6,6 @@ QCIOpt = "6e1d72ef-e149-4f5c-9c69-bc0273b92dbc"
 [compat]
 Documenter = "1"
 JuMP = "1.30"
+# Keep this aligned with the root Project.toml package version.
 QCIOpt = "0.1"
 julia = "1.10"
