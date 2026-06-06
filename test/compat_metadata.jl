@@ -19,7 +19,7 @@ import Pkg
         Pkg.Versions.VersionNumber(version) in Pkg.Types.semver_spec(compat[package])
 
     @test compat["julia"] == "1.10"
-    @test project["version"] == "0.1.0"
+    @test VersionNumber(project["version"]) isa VersionNumber
     @test compat_allows_julia_110(compat, "Dates")
     @test compat_allows_julia_110(compat, "LinearAlgebra")
     @test compat_allows_julia_110(Dict("LinearAlgebra" => "1"), "LinearAlgebra")
@@ -64,8 +64,12 @@ import Pkg
     @test occursin("Dependabot and compatibility-only PRs are maintenance changes", readme_words)
     @test occursin("- Bump `version` in `Project.toml`.", readme_text)
     @test occursin("julia --project=. -e 'using Pkg; Pkg.test()'", readme_text)
+    @test occursin(
+        "julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'",
+        readme_text,
+    )
     @test occursin("julia --project=docs docs/make.jl", readme_text)
-    @test occursin("git tag -a v$(project["version"])", readme_text)
+    @test occursin("git tag -a v<version>", readme_text)
 
     workflow_dir = joinpath(@__DIR__, "..", ".github", "workflows")
     workflow_files =

@@ -26,9 +26,11 @@ Manual release checklist:
 
 - Bump `version` in `Project.toml`.
 - Run package tests with `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- Prepare the docs environment with
+  `julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'`.
 - Build docs without deployment with `julia --project=docs docs/make.jl`.
 - Create an annotated tag matching the package version, for example
-  `git tag -a v0.1.0 -m "QCIOpt v0.1.0"`.
+  `git tag -a v<version> -m "QCIOpt v<version>"`.
 - Push the release commit and tag after review.
 
 ## Basic Usage
