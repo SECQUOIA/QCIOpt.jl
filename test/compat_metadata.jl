@@ -7,6 +7,8 @@ import Pkg
     test_project = TOML.parsefile(joinpath(@__DIR__, "Project.toml"))
     condapkg = TOML.parsefile(joinpath(@__DIR__, "..", "CondaPkg.toml"))
     project_text = read(joinpath(@__DIR__, "..", "Project.toml"), String)
+    readme_text = read(joinpath(@__DIR__, "..", "README.md"), String)
+    readme_words = replace(readme_text, r"\s+" => " ")
     compat = project["compat"]
     deps = project["deps"]
 
@@ -17,6 +19,7 @@ import Pkg
         Pkg.Versions.VersionNumber(version) in Pkg.Types.semver_spec(compat[package])
 
     @test compat["julia"] == "1.10"
+    @test VersionNumber(project["version"]) isa VersionNumber
     @test compat_allows_julia_110(compat, "Dates")
     @test compat_allows_julia_110(compat, "LinearAlgebra")
     @test compat_allows_julia_110(Dict("LinearAlgebra" => "1"), "LinearAlgebra")
@@ -53,6 +56,20 @@ import Pkg
     @test condapkg["deps"]["libffi"]["version"] == ">=3.4,<3.5"
     @test condapkg["deps"]["libffi"]["channel"] == "anaconda"
     @test condapkg["pip"]["deps"]["qci-client"] == ">=4.5"
+    @test occursin("Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\")", readme_text)
+    @test occursin("QCIOpt.jl is currently a URL-only package", readme_words)
+    @test occursin("not registered in the Julia General registry", readme_words)
+    @test occursin("does not use TagBot or registry-based release automation", readme_words)
+    @test occursin("source of truth for the package version", readme_words)
+    @test occursin("Dependabot and compatibility-only PRs are maintenance changes", readme_words)
+    @test occursin("- Bump `version` in `Project.toml`.", readme_text)
+    @test occursin("julia --project=. -e 'using Pkg; Pkg.test()'", readme_text)
+    @test occursin(
+        "julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'",
+        readme_text,
+    )
+    @test occursin("julia --project=docs docs/make.jl", readme_text)
+    @test occursin("git tag -a v<version>", readme_text)
 
     workflow_dir = joinpath(@__DIR__, "..", ".github", "workflows")
     workflow_files =
@@ -101,7 +118,11 @@ import Pkg
     @test occursin("uses: julia-actions/setup-julia@v3", docs)
     @test occursin("uses: julia-actions/julia-buildpkg@v1", docs)
     @test occursin("uses: actions/checkout@v6", docscleanup)
+    @test !any(file -> occursin("tagbot", lowercase(file)), workflow_files)
     @test !occursin("@latest", all_workflows)
+    @test !occursin("TagBot", all_workflows)
+    @test !occursin("JuliaRegistrator", all_workflows)
+    @test !occursin("JuliaRegistries/RegisterAction", all_workflows)
     @test !occursin("actions/checkout@v2", all_workflows)
     @test !occursin("julia-actions/setup-julia@v1", all_workflows)
 

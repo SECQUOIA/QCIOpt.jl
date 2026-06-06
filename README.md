@@ -11,6 +11,28 @@ julia> import Pkg
 julia> Pkg.add(url="https://github.com/SECQUOIA/QCIOpt.jl")
 ```
 
+## Release Workflow
+
+QCIOpt.jl is currently a URL-only package. It is not registered in the Julia
+General registry, and this repository does not use TagBot or registry-based
+release automation. Install from the repository URL until the project explicitly
+chooses registry distribution.
+
+`Project.toml` is the source of truth for the package version. Dependabot and
+compatibility-only PRs are maintenance changes; they are not release-significant
+unless a maintainer intentionally includes a version bump and release work.
+
+Manual release checklist:
+
+- Bump `version` in `Project.toml`.
+- Run package tests with `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- Prepare the docs environment with
+  `julia --project=docs -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'`.
+- Build docs without deployment with `julia --project=docs docs/make.jl`.
+- Create an annotated tag matching the package version, for example
+  `git tag -a v<version> -m "QCIOpt v<version>"`.
+- Push the release commit and tag after review.
+
 ## Basic Usage
 ```julia
 using JuMP
