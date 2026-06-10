@@ -78,6 +78,7 @@ import Pkg
     ci = workflow_texts["ci.yml"]
     docs = workflow_texts["docs.yml"]
     docscleanup = workflow_texts["docscleanup.yml"]
+    liveqci = workflow_texts["live-qci.yml"]
     all_workflows = join((workflow_texts[file] for file in workflow_files), "\n")
 
     function has_ci_matrix_entry(version, os)
@@ -114,10 +115,16 @@ import Pkg
     @test occursin("uses: julia-actions/cache@v3", ci)
     @test occursin("uses: julia-actions/julia-buildpkg@v1", ci)
     @test occursin("uses: julia-actions/julia-runtest@v1", ci)
+    @test !occursin("QCI_TOKEN", ci)
     @test occursin("uses: actions/checkout@v6", docs)
     @test occursin("uses: julia-actions/setup-julia@v3", docs)
     @test occursin("uses: julia-actions/julia-buildpkg@v1", docs)
     @test occursin("uses: actions/checkout@v6", docscleanup)
+    @test occursin("uses: actions/checkout@v6", liveqci)
+    @test occursin("uses: julia-actions/setup-julia@v3", liveqci)
+    @test occursin("uses: julia-actions/cache@v3", liveqci)
+    @test occursin("uses: julia-actions/julia-buildpkg@v1", liveqci)
+    @test occursin("uses: julia-actions/julia-runtest@v1", liveqci)
     @test !any(file -> occursin("tagbot", lowercase(file)), workflow_files)
     @test !occursin("@latest", all_workflows)
     @test !occursin("TagBot", all_workflows)
@@ -150,11 +157,19 @@ import Pkg
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
     ci_runtest_step = workflow_uses_step(ci, "julia-actions/julia-runtest@v1")
+    liveqci_runtest_step = workflow_uses_step(liveqci, "julia-actions/julia-runtest@v1")
     @test !occursin(r"(?i)CompatHelper", dependabot)
     @test !any(file -> occursin("compathelper", lowercase(file)), workflow_files)
     @test !occursin(r"(?i)CompatHelper", all_workflows)
     @test !isempty(ci_runtest_step)
     @test !enables_live_qci_tests(ci_runtest_step)
+    @test occursin("workflow_dispatch:", liveqci)
+    @test !occursin("pull_request", liveqci)
+    @test !occursin("schedule", liveqci)
+    @test occursin("group: live-qci", liveqci)
+    @test occursin(raw"QCI_TOKEN: ${{ secrets.QCI_TOKEN }}", liveqci)
+    @test !isempty(liveqci_runtest_step)
+    @test enables_live_qci_tests(liveqci_runtest_step)
     @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: true\n")
     @test enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: '1'\n")
     @test !enables_live_qci_tests("env:\n  QCI_RUN_LIVE_TESTS: false\n")

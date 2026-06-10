@@ -94,7 +94,11 @@ function load_attributes!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.M
     end
 
     for attr in MOI.get(model, MOI.ListOfOptimizerAttributesSet())
+        attr isa QCIOpt.DeviceType && continue
+
         if attr isa MOI.RawOptimizerAttribute
+            attr.name == "device_type" && continue
+
             if attr.name ∈ QCI_GENERIC_ATTRIBUTES
                 MOI.set(solver, attr, MOI.get(model, attr))
             else
@@ -166,7 +170,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
 
     # Store results
     # TODO: Preserve job identifiers, timing, status, and provider diagnostics in metadata.
-    solver.solution = readjust_solution(device, solution, MOI.get(solver, MOI.ObjectiveSense()))
+    solver.solution = readjust_solution(device, solution, MOI.get(model, MOI.ObjectiveSense()))
 
     return nothing
 end

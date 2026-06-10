@@ -38,6 +38,17 @@
         @test isnothing(response.error)
     end
 
+    @testset "VarMap constructor indexes source variables" begin
+        v1 = MOI.VariableIndex(1)
+        v2 = MOI.VariableIndex(2)
+        vm = QCIOpt.VarMap{MOI.VariableIndex,Int}([v1 => 1, v2 => 2])
+
+        @test QCIOpt.var_map(vm, v1) == 1
+        @test QCIOpt.var_inv(vm, 2) == v2
+        @test QCIOpt.var_idx(vm, v1) == 1
+        @test QCIOpt.var_idx(vm, v2) == 2
+    end
+
     @testset "DIRAC-1 QUBO loading helpers" begin
         model = MOI.Utilities.Model{Float64}()
         x = MOI.add_variables(model, 2)
@@ -55,6 +66,35 @@
         MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
 
         @test QCIOpt.assert_is_qubo_model(model) === nothing
+    end
+
+    @testset "DIRAC-1 load preserves active device state" begin
+        model = MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}())
+        x = MOI.add_variables(model, 2)
+
+        MOI.add_constraint(model, x[1], MOI.ZeroOne())
+        MOI.add_constraint(model, x[2], MOI.ZeroOne())
+
+        f = MOI.ScalarQuadraticFunction(
+            [MOI.ScalarQuadraticTerm(-2.0, x[1], x[2])],
+            [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
+            1.0,
+        )
+
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+        MOI.set(model, QCIOpt.DeviceType(), "dirac-1")
+
+        solver = QCIOpt.Optimizer()
+        MOI.set(solver, QCIOpt.DeviceType(), "dirac-1")
+        MOI.set(solver, MOI.RawOptimizerAttribute("api_token"), "dummy-token")
+
+        device = getfield(solver, :device)
+
+        @test QCIOpt.qci_load!(solver, device, model; api_token = "dummy-token") === nothing
+        @test getfield(solver, :device) === device
+        @test QCIOpt.var_idx(device.varmap, x[1]) == 1
+        @test QCIOpt.var_idx(device.varmap, x[2]) == 2
     end
 
     @testset "DIRAC-1 load path stays offline" begin
@@ -102,6 +142,19 @@
         @test adjusted[1].point == [0.0, 1.0]
         @test adjusted[1].value ≈ 2.0
         @test adjusted[1].reads == 2
+    end
+
+    @testset "DIRAC-3 attribute copy preserves active device state" begin
+        model = MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}())
+        MOI.set(model, QCIOpt.DeviceType(), "dirac-3")
+
+        solver = QCIOpt.Optimizer()
+        device = getfield(solver, :device)
+
+        QCIOpt.copy_model_attributes!(solver, model)
+
+        @test getfield(solver, :device) === device
+        @test MOI.get(solver, QCIOpt.DeviceType()) == "dirac-3"
     end
 
     @testset "Solve time metadata" begin

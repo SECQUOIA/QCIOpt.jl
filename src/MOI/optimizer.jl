@@ -9,12 +9,12 @@ struct VarMap{S,T}
     function VarMap{S,T}(pairs) where {S,T}
         map = sizehint!(Dict{S,T}(), length(pairs))
         inv = sizehint!(Dict{T,S}(), length(pairs))
-        idx = sizehint!(Dict{T,S}(), length(pairs))
+        idx = sizehint!(Dict{S,Int}(), length(pairs))
 
         for (i, (s, t)) in enumerate(pairs)
             map[s] = t
             inv[t] = s
-            idx[t] = i
+            idx[s] = i
         end
 
         return new{S,T}(map, inv, idx)
@@ -384,6 +384,9 @@ function copy_model_attributes!(solver, model)
     end
 
     for attr in MOI.get(model, MOI.ListOfOptimizerAttributesSet())
+        attr isa QCIOpt.DeviceType && continue
+        attr isa MOI.RawOptimizerAttribute && attr.name == "device_type" && continue
+
         MOI.set(solver, attr, MOI.get(model, attr))
     end
 

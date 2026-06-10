@@ -1,0 +1,33 @@
+name: Live QCI
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: live-qci
+  cancel-in-progress: false
+jobs:
+  test:
+    name: Julia 1 - ubuntu-latest - live QCI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check QCI token
+        env:
+          QCI_TOKEN: ${{ secrets.QCI_TOKEN }}
+        run: |
+          if [ -z "$QCI_TOKEN" ]; then
+            echo "QCI_TOKEN secret is not configured."
+            exit 1
+          fi
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+        env:
+          QCI_TOKEN: ${{ secrets.QCI_TOKEN }}
+          QCI_RUN_LIVE_TESTS: true
