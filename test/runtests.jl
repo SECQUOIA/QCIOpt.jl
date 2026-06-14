@@ -9,6 +9,7 @@ import MathOptInterface as MOI
     include("compat_metadata.jl")
     include("auth.jl")
     include("offline.jl")
+    include("qubodrivers_sampler.jl")
     include("review_regressions.jl")
 
     if lowercase(get(ENV, "QCI_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")

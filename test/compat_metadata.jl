@@ -35,6 +35,8 @@ import Pkg
     @test compat["JSON"] == "0.21, 1.6"
     @test compat["MathOptInterface"] == "1.35"
     @test compat["PythonCall"] == "0.9"
+    @test compat["QUBODrivers"] == "0.6"
+    @test compat["QUBOTools"] == "0.13"
     @test compat["Suppressor"] == "0.2"
     @test version_spec_allows("CondaPkg", "0.2.24")
     @test version_spec_allows("CondaPkg", "0.2.36")
@@ -49,6 +51,10 @@ import Pkg
     @test !version_spec_allows("MathOptInterface", "1.34.0")
     @test version_spec_allows("PythonCall", "0.9.34")
     @test !version_spec_allows("PythonCall", "0.10.0")
+    @test version_spec_allows("QUBODrivers", "0.6.1")
+    @test !version_spec_allows("QUBODrivers", "0.7.0")
+    @test version_spec_allows("QUBOTools", "0.13.1")
+    @test !version_spec_allows("QUBOTools", "0.14.0")
     @test version_spec_allows("Suppressor", "0.2.8")
     @test occursin("Keep CondaPkg on 0.2.x", project_text)
     @test occursin("PythonCall 0.9", project_text)
