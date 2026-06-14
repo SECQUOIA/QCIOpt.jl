@@ -1,6 +1,11 @@
 name: Live QCI
 on:
   workflow_dispatch:
+    inputs:
+      capture_dirac1_metadata:
+        description: Capture one DIRAC-1 provider response field map instead of running live smoke tests
+        required: false
+        default: 'false'
 permissions:
   contents: read
 concurrency:
@@ -27,7 +32,13 @@ jobs:
           arch: x64
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Capture DIRAC-1 metadata field map
+        if: github.event.inputs.capture_dirac1_metadata == 'true'
+        env:
+          QCI_TOKEN: ${{ secrets.QCI_TOKEN }}
+        run: julia --project=. scripts/capture_dirac1_metadata.jl
       - uses: julia-actions/julia-runtest@v1
+        if: github.event.inputs.capture_dirac1_metadata != 'true'
         env:
           QCI_TOKEN: ${{ secrets.QCI_TOKEN }}
           QCI_RUN_LIVE_TESTS: true
