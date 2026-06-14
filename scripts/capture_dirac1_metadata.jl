@@ -96,6 +96,88 @@ function print_pairs(pairs)
     end
 end
 
+function nested_get(value, path::AbstractVector{<:AbstractString})
+    current = value
+
+    for key in path
+        if current isa AbstractDict && haskey(current, key)
+            current = current[key]
+        else
+            return nothing
+        end
+    end
+
+    return current
+end
+
+function vector_summary(value)
+    if value isa AbstractVector && all(item -> item isa Number, value)
+        return Dict{String,Any}(
+            "length" => length(value),
+            "minimum" => minimum(value),
+            "maximum" => maximum(value),
+            "sum" => sum(value),
+        )
+    elseif value isa AbstractVector
+        return Dict{String,Any}(
+            "length" => length(value),
+            "first" => isempty(value) ? nothing : first(value),
+        )
+    else
+        return value
+    end
+end
+
+function collect_timing_value_map(response, client_details)
+    metrics = client_details["metrics"]
+    values = Pair{String,Any}[]
+
+    paths = [
+        "response.status" => ["status"],
+        "response.job_info.job_id" => ["job_info", "job_id"],
+        "response.job_info.job_result.device_usage_s" => ["job_info", "job_result", "device_usage_s"],
+        "response.job_info.job_result.file_id" => ["job_info", "job_result", "file_id"],
+        "response.job_info.job_status.submitted_at_rfc3339nano" => ["job_info", "job_status", "submitted_at_rfc3339nano"],
+        "response.job_info.job_status.queued_at_rfc3339nano" => ["job_info", "job_status", "queued_at_rfc3339nano"],
+        "response.job_info.job_status.running_at_rfc3339nano" => ["job_info", "job_status", "running_at_rfc3339nano"],
+        "response.job_info.job_status.completed_at_rfc3339nano" => ["job_info", "job_status", "completed_at_rfc3339nano"],
+    ]
+
+    for (label, path) in paths
+        value = nested_get(response, path)
+        isnothing(value) || push!(values, label => value)
+    end
+
+    metric_paths = [
+        "metrics.job_metrics.time_ns.wall.start" => ["job_metrics", "time_ns", "wall", "start"],
+        "metrics.job_metrics.time_ns.wall.end" => ["job_metrics", "time_ns", "wall", "end"],
+        "metrics.job_metrics.time_ns.wall.queue.start" => ["job_metrics", "time_ns", "wall", "queue", "start"],
+        "metrics.job_metrics.time_ns.wall.queue.end" => ["job_metrics", "time_ns", "wall", "queue", "end"],
+        "metrics.job_metrics.time_ns.wall.processing.start" => ["job_metrics", "time_ns", "wall", "processing", "start"],
+        "metrics.job_metrics.time_ns.wall.processing.end" => ["job_metrics", "time_ns", "wall", "processing", "end"],
+        "metrics.job_metrics.time_ns.wall.processing.compute.start" => ["job_metrics", "time_ns", "wall", "processing", "compute", "start"],
+        "metrics.job_metrics.time_ns.wall.processing.compute.end" => ["job_metrics", "time_ns", "wall", "processing", "compute", "end"],
+        "metrics.job_metrics.time_ns.wall.processing.io.problem_download.start" => ["job_metrics", "time_ns", "wall", "processing", "io", "problem_download", "start"],
+        "metrics.job_metrics.time_ns.wall.processing.io.problem_download.end" => ["job_metrics", "time_ns", "wall", "processing", "io", "problem_download", "end"],
+        "metrics.job_metrics.time_ns.wall.processing.io.results_upload.start" => ["job_metrics", "time_ns", "wall", "processing", "io", "results_upload", "start"],
+        "metrics.job_metrics.time_ns.wall.processing.io.results_upload.end" => ["job_metrics", "time_ns", "wall", "processing", "io", "results_upload", "end"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.runtime" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "runtime"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.start" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "start"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.end" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "end"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.start_job_ts" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "start_job_ts"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.end_job_ts" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "end_job_ts"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.start_queue_ts" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "start_queue_ts"],
+        "metrics.job_metrics.time_ns.device.dirac-1.samples.end_queue_ts" => ["job_metrics", "time_ns", "device", "dirac-1", "samples", "end_queue_ts"],
+    ]
+
+    for (label, path) in metric_paths
+        value = nested_get(metrics, path)
+        isnothing(value) || push!(values, label => vector_summary(value))
+    end
+
+    return values
+end
+
 function capture_dirac1()
     api_token = get(ENV, "QCI_TOKEN", "")
     isempty(strip(api_token)) && error("QCI_TOKEN is required")
@@ -169,6 +251,9 @@ function capture_dirac1()
         print_section("$(name) selected values")
         print_pairs(selected_values!(Pair{String,Any}[], payload))
     end
+
+    print_section("timing value map")
+    print_pairs(collect_timing_value_map(response, client_details))
 
     return nothing
 end
