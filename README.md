@@ -95,8 +95,8 @@ Live QCI smoke tests are optional and require credentials. To run them locally, 
 $ QCI_RUN_LIVE_TESTS=true QCI_TOKEN="your_token_here" julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-In GitHub Actions, live QCI tests run only from the manual `Live QCI`
-workflow. The default CI workflow runs offline tests only.
+In GitHub Actions, live QCI tests run from the manual and weekly scheduled
+`Live QCI` workflow. The default CI workflow runs offline tests only.
 
 **Disclaimer:** _The QCI Optimization Wrapper for Julia is not officially supported by Quantum Computing Inc. If you are a commercial customer interested in official support for Julia from QCI, let them know!_
 

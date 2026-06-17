@@ -1,6 +1,90 @@
 import QUBODrivers
 import QUBODrivers: QUBOTools
 
+function mock_dirac_backend_runner(
+    matrix::AbstractMatrix{T};
+    api_token,
+    num_samples,
+    relaxation_schedule,
+    silent,
+) where {T}
+    @test api_token == "dummy-token"
+    @test num_samples >= 1
+    @test relaxation_schedule >= 1
+    @test silent
+
+    n = size(matrix, 1)
+    state = zeros(Int, n)
+    effective_ns = max(1, Int(num_samples))
+    wall_end_ns = 1_000_000_000 + effective_ns
+
+    return Dict{String,Any}(
+        "response" => Dict{String,Any}(
+            "status" => "COMPLETED",
+            "results" => Dict{String,Any}(
+                "solutions" => [state],
+                "energies" => [Float64(state' * matrix * state)],
+                "counts" => [Int(num_samples)],
+            ),
+            "job_info" => Dict{String,Any}(
+                "job_id" => "mock-job-$(n)-$(num_samples)",
+                "job_result" => Dict{String,Any}(
+                    "device_usage_s" => effective_ns / 1e9,
+                    "file_id" => "mock-result-file",
+                ),
+                "job_status" => Dict{String,Any}(
+                    "submitted_at_rfc3339nano" => "2026-06-14T10:11:37.359Z",
+                    "queued_at_rfc3339nano" => "2026-06-14T10:11:37.360Z",
+                    "running_at_rfc3339nano" => "2026-06-14T10:11:37.879Z",
+                    "completed_at_rfc3339nano" => "2026-06-14T10:11:38.879Z",
+                ),
+                "job_submission" => Dict{String,Any}(
+                    "problem_config" => Dict{String,Any}(
+                        "quadratic_unconstrained_binary_optimization" =>
+                            Dict{String,Any}("qubo_file_id" => "mock-qubo-file"),
+                    ),
+                ),
+            ),
+        ),
+        "metrics" => Dict{String,Any}(
+            "job_id" => "mock-job-$(n)-$(num_samples)",
+            "job_metrics" => Dict{String,Any}(
+                "time_ns" => Dict{String,Any}(
+                    "device" => Dict{String,Any}(
+                        "dirac-1" => Dict{String,Any}(
+                            "samples" => Dict{String,Any}(
+                                "runtime" => ones(Int, Int(num_samples)),
+                            ),
+                        ),
+                    ),
+                    "wall" => Dict{String,Any}(
+                        "start" => 1_000_000_000,
+                        "end" => wall_end_ns,
+                        "queue" => Dict{String,Any}(
+                            "start" => 1_000_000_000,
+                            "end" => 1_000_000_000,
+                        ),
+                        "processing" => Dict{String,Any}(
+                            "start" => 1_000_000_000,
+                            "end" => wall_end_ns,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        "qci_client_version" => "5.0.0",
+        "request" => Dict{String,Any}("num_samples" => num_samples),
+    )
+end
+
+function configure_mocked_dirac!(model)
+    MOI.set(model, QCIOpt.DiracSampler.APIToken(), "dummy-token")
+    MOI.set(model, QCIOpt.DiracSampler.Silent(), true)
+    MOI.set(model, QCIOpt.DiracSampler.BackendRunner(), mock_dirac_backend_runner)
+
+    return model
+end
+
 @testset "QUBODrivers DIRAC sampler" begin
     @testset "Attributes and QCI matrix conversion" begin
         sampler = QCIOpt.DiracSampler.Optimizer()
@@ -9,6 +93,7 @@ import QUBODrivers: QUBOTools
         @test MOI.get(sampler, QCIOpt.DiracSampler.NumberOfSamples()) == 10
         @test MOI.get(sampler, QCIOpt.DiracSampler.DeviceType()) == "dirac-1"
         @test !QUBODrivers.supports_seed(sampler)
+        @test QUBODrivers.honors_final_reads(sampler)
 
         linear = Dict(1 => 1.0, 2 => 1.0)
         quadratic = Dict((1, 2) => -2.0)
@@ -149,5 +234,9 @@ import QUBODrivers: QUBOTools
         @test metadata["time"]["device_usage"] == 2
         @test metadata["provider"]["metrics"]["job_id"] == "job-123"
         @test metadata["provider"]["qci_client_version"] == "5.0.0"
+    end
+
+    @testset "QUBODrivers conformance suite with mocked backend" begin
+        QUBODrivers.test(configure_mocked_dirac!, QCIOpt.DiracSampler.Optimizer)
     end
 end

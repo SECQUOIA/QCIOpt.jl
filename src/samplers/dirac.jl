@@ -182,6 +182,8 @@ QUBODrivers.@setup Optimizer begin
     end
 end
 
+QUBODrivers.honors_final_reads(::Type{<:Optimizer}) = true
+
 function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     n, linear, quadratic, scale, offset = QUBOTools.qubo(sampler, :dict; sense = :min)
 
