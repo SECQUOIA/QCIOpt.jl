@@ -216,9 +216,10 @@ end
         @test MOI.get(sampler, MOI.SolveTimeSec()) ≈ 1.5
         @test MOI.get(sampler, MOI.ObjectiveValue(1)) ≈ 1.0
 
-        metadata = QUBOTools.metadata(QUBOTools.solution(sampler))
+        sampleset = QUBOTools.solution(sampler)
+        metadata = QUBOTools.metadata(sampleset)
 
-        @test isempty(QUBODrivers.validate_metadata(metadata))
+        @test isempty(QUBODrivers.validate_metadata(sampleset))
         @test metadata["backend"]["name"] == "QCI Dirac"
         @test metadata["backend"]["version"] == "5.0.0"
         @test metadata["backend"]["device"] == "dirac-1"
