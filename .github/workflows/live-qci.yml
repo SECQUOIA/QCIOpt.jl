@@ -1,6 +1,8 @@
 name: Live QCI
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 8 * * 0'
 permissions:
   contents: read
 concurrency:
@@ -10,7 +12,7 @@ jobs:
   test:
     name: Julia 1 - ubuntu-latest - live QCI
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - name: Check QCI token
