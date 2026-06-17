@@ -2,7 +2,6 @@ using Test
 using JuMP
 using QCIOpt
 
-import JSON
 import QUBODrivers
 import QUBODrivers: QUBOTools
 
@@ -72,7 +71,8 @@ if QCIOpt.__auth__()
             @test metadata["provider"]["metrics"] isa AbstractDict
 
             println("LIVE_QCI_QUBODRIVERS_METADATA_BEGIN")
-            println(JSON.json(metadata, 4))
+            show(stdout, MIME("text/plain"), metadata)
+            println()
             println("LIVE_QCI_QUBODRIVERS_METADATA_END")
         end
 
