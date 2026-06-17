@@ -155,11 +155,13 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
     silent      = MOI.get(solver, MOI.Silent())
     file_name   = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
     num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
+    relaxation_schedule = MOI.get(solver, MOI.RawOptimizerAttribute("relaxation_schedule"))
 
     job_params = Dict{Symbol,Any}(
-        :device_type => "dirac-1",
-        :job_type    => "sample-qubo",
-        :num_samples => num_samples,
+        :device_type         => "dirac-1",
+        :job_type            => "sample-qubo",
+        :num_samples         => num_samples,
+        :relaxation_schedule => relaxation_schedule,
     )
 
     file     = qci_data_file(device.matrix; file_name)
@@ -206,12 +208,14 @@ function qci_build_job_body(
     # Job Arguments
     device_type::AbstractString = "dirac-1",
     job_type::AbstractString    = "sample-qubo",
-    num_samples::Integer        = 100,
+    num_samples::Integer         = 100,
+    relaxation_schedule::Integer = 1,
 ) where {T}
     job_tags   = String[]
     job_params = Dict{String,Any}(
-        "device_type" => device_type,
-        "num_samples" => num_samples,
+        "device_type"         => device_type,
+        "num_samples"         => num_samples,
+        "relaxation_schedule" => relaxation_schedule,
     )
 
     return qci_client(; url, api_token, silent) do client

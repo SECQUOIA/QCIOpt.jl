@@ -11,6 +11,8 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+QUBODrivers = "a3f166f7-2cd3-47b6-9e1e-6fbfe0449eb0"
+QUBOTools = "60eb5b62-0a39-4ddc-84c5-97d2adff9319"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 
 [compat]
@@ -23,5 +25,7 @@ JSON = "0.21, 1.6"
 MathOptInterface = "1.35"
 # PythonCall 0.9 owns the CondaPkg-backed Python environment used by qci-client.
 PythonCall = "0.9"
+QUBODrivers = "0.6"
+QUBOTools = "0.13"
 Suppressor = "0.2"
 julia = "1.10"

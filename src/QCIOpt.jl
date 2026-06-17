@@ -128,4 +128,7 @@ include("devices/dirac1.jl")
 # include("devices/dirac2.jl")
 include("devices/dirac3.jl")
 
+# QUBODrivers sampler interface
+include("samplers/dirac.jl")
+
 end # module QCIOpt
