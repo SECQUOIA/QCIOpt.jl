@@ -21,6 +21,7 @@ if QCIOpt.__auth__()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2])
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
+                set_attribute(model, MOI.RawOptimizerAttribute("num_samples"), 1)
 
                 optimize!(model)
 
@@ -90,6 +91,7 @@ if QCIOpt.__auth__()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2])
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, MOI.RawOptimizerAttribute("num_samples"), 1)
 
                 optimize!(model)
 
@@ -125,6 +127,7 @@ if QCIOpt.__auth__()
                 @objective(model, Min, 1 + x[1] + x[2] - 2 * x[1] * x[2])
 
                 set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, MOI.RawOptimizerAttribute("num_samples"), 1)
 
                 optimize!(model)
 
