@@ -26,6 +26,6 @@ MathOptInterface = "1.35"
 # PythonCall 0.9 owns the CondaPkg-backed Python environment used by qci-client.
 PythonCall = "0.9"
 QUBODrivers = "0.6"
-QUBOTools = "0.13, 0.15"
+QUBOTools = "0.13, 0.14, 0.15"
 Suppressor = "0.2"
 julia = "1.10"
