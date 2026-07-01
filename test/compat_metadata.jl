@@ -48,6 +48,7 @@ import Pkg
     @test !version_spec_allows("PythonCall", "0.10.0")
     @test version_spec_allows("QUBODrivers", "0.6.1")
     @test version_spec_allows("QUBOTools", "0.13.1")
+    @test version_spec_allows("QUBOTools", "0.14.0")
     @test version_spec_allows("QUBOTools", "0.15.0")
     @test version_spec_allows("Suppressor", "0.2.8")
     @test occursin("Keep CondaPkg on 0.2.x", project_text)
