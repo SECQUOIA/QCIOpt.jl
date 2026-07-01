@@ -92,14 +92,26 @@ import Pkg
         return isnothing(step) ? "" : step.match
     end
 
-    function workflow_uses_step(text, uses)
+    function workflow_uses_action_step(text, action, minimum_major)
         pattern = Regex(
             "(?ms)^\\s*- uses: " *
-            uses *
+            action *
+            "@v(\\d+)" *
             "\\s*\\n(.*?)(?=^\\s*- (?:name|uses): |\\z)",
         )
-        step = match(pattern, text)
-        return isnothing(step) ? "" : step.match
+
+        for step in eachmatch(pattern, text)
+            parse(Int, step.captures[1]) >= minimum_major && return step.match
+        end
+
+        return ""
+    end
+
+    function uses_action_major_at_least(text, action, minimum_major)
+        pattern = Regex("(?mi)^\\s*(?:-\\s*)?uses:\\s*" * action * "@v(\\d+)\\s*\$")
+        return any(eachmatch(pattern, text)) do matched
+            parse(Int, matched.captures[1]) >= minimum_major
+        end
     end
 
     enables_live_qci_tests(text) =
@@ -110,21 +122,25 @@ import Pkg
     @test has_ci_matrix_entry("1.10", "windows-latest")
     @test has_ci_matrix_entry("1", "windows-latest")
 
-    @test occursin("uses: actions/checkout@v6", ci)
-    @test occursin("uses: julia-actions/setup-julia@v3", ci)
-    @test occursin("uses: julia-actions/cache@v3", ci)
-    @test occursin("uses: julia-actions/julia-buildpkg@v1", ci)
-    @test occursin("uses: julia-actions/julia-runtest@v1", ci)
+    @test uses_action_major_at_least("  uses: actions/checkout@v7\n", "actions/checkout", 6)
+    @test !uses_action_major_at_least("  uses: actions/checkout@v5\n", "actions/checkout", 6)
+    @test !uses_action_major_at_least("  uses: actions/checkout@latest\n", "actions/checkout", 6)
+
+    @test uses_action_major_at_least(ci, "actions/checkout", 6)
+    @test uses_action_major_at_least(ci, "julia-actions/setup-julia", 3)
+    @test uses_action_major_at_least(ci, "julia-actions/cache", 3)
+    @test uses_action_major_at_least(ci, "julia-actions/julia-buildpkg", 1)
+    @test uses_action_major_at_least(ci, "julia-actions/julia-runtest", 1)
     @test !occursin("QCI_TOKEN", ci)
-    @test occursin("uses: actions/checkout@v6", docs)
-    @test occursin("uses: julia-actions/setup-julia@v3", docs)
-    @test occursin("uses: julia-actions/julia-buildpkg@v1", docs)
-    @test occursin("uses: actions/checkout@v6", docscleanup)
-    @test occursin("uses: actions/checkout@v6", liveqci)
-    @test occursin("uses: julia-actions/setup-julia@v3", liveqci)
-    @test occursin("uses: julia-actions/cache@v3", liveqci)
-    @test occursin("uses: julia-actions/julia-buildpkg@v1", liveqci)
-    @test occursin("uses: julia-actions/julia-runtest@v1", liveqci)
+    @test uses_action_major_at_least(docs, "actions/checkout", 6)
+    @test uses_action_major_at_least(docs, "julia-actions/setup-julia", 3)
+    @test uses_action_major_at_least(docs, "julia-actions/julia-buildpkg", 1)
+    @test uses_action_major_at_least(docscleanup, "actions/checkout", 6)
+    @test uses_action_major_at_least(liveqci, "actions/checkout", 6)
+    @test uses_action_major_at_least(liveqci, "julia-actions/setup-julia", 3)
+    @test uses_action_major_at_least(liveqci, "julia-actions/cache", 3)
+    @test uses_action_major_at_least(liveqci, "julia-actions/julia-buildpkg", 1)
+    @test uses_action_major_at_least(liveqci, "julia-actions/julia-runtest", 1)
     @test !any(file -> occursin("tagbot", lowercase(file)), workflow_files)
     @test !occursin("@latest", all_workflows)
     @test !occursin("TagBot", all_workflows)
@@ -156,8 +172,8 @@ import Pkg
     @test occursin("if: steps.cleanup.outputs.deleted == 'true'", docs_cleanup_push_step)
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
-    ci_runtest_step = workflow_uses_step(ci, "julia-actions/julia-runtest@v1")
-    liveqci_runtest_step = workflow_uses_step(liveqci, "julia-actions/julia-runtest@v1")
+    ci_runtest_step = workflow_uses_action_step(ci, "julia-actions/julia-runtest", 1)
+    liveqci_runtest_step = workflow_uses_action_step(liveqci, "julia-actions/julia-runtest", 1)
     @test !occursin(r"(?i)CompatHelper", dependabot)
     @test !any(file -> occursin("compathelper", lowercase(file)), workflow_files)
     @test !occursin(r"(?i)CompatHelper", all_workflows)
