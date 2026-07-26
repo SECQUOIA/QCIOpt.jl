@@ -11,7 +11,7 @@ function qci_client_version()
     return try
         QCIOpt.PythonCall.pyconvert(
             String,
-            QCIOpt.PythonCall.pyimport("importlib.metadata").version("qci-client"),
+            QCIOpt.qcic.__version__,
         )
     catch
         nothing
@@ -277,7 +277,7 @@ function metadata_from_response(
     problem_file_id = qubo_config isa AbstractDict ? get(qubo_config, "qubo_file_id", nothing) : nothing
 
     metadata = QUBODrivers._sampler_metadata(
-        origin = "QCI Dirac @ qci-client",
+        origin = "QCI Dirac @ QCIOpt client bridge",
         algorithm_name = "QCI Dirac",
         backend_name = "QCI Dirac",
         backend_version = backend_version,

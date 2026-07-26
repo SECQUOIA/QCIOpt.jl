@@ -60,7 +60,11 @@ function __load__()
     qci_default_token!(get(ENV, "QCI_TOKEN", nothing))
 
     PythonCall.pycopy!(np, PythonCall.pyimport("numpy"))
-    PythonCall.pycopy!(qcic, PythonCall.pyimport("qci_client"))
+    python_dir = normpath(joinpath(@__DIR__, "..", "python"))
+    sys = PythonCall.pyimport("sys")
+    python_dir in PythonCall.pyconvert(Vector{String}, sys.path) ||
+        sys.path.insert(0, python_dir)
+    PythonCall.pycopy!(qcic, PythonCall.pyimport("qciopt_client"))
     PythonCall.pycopy!(json, PythonCall.pyimport("json"))
     PythonCall.pycopy!(requests, PythonCall.pyimport("requests"))
 

@@ -17,7 +17,7 @@ end
 
 # [x] SolverVersion	        Yes	No	No
 function MOI.get(::Optimizer{T}, ::MOI.SolverVersion) where {T}
-    return v"4.5.0"     #qci-client version
+    return v"0.1.0"
 end
 
 ### Check below for the list of attributes that are supported by the QCI Optimizer and create functions - YP 

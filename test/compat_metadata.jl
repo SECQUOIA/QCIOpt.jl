@@ -56,7 +56,10 @@ import Pkg
     @test condapkg["deps"]["python"] == ">=3.8,<=3.12"
     @test condapkg["deps"]["libffi"]["version"] == ">=3.4,<3.5"
     @test condapkg["deps"]["libffi"]["channel"] == "anaconda"
-    @test condapkg["pip"]["deps"]["qci-client"] == ">=4.5"
+    @test !haskey(condapkg["pip"]["deps"], "qci-client")
+    @test haskey(condapkg["pip"]["deps"], "numpy")
+    @test occursin("QCIOpt and DWave", readme_text)
+    @test occursin("does not install the `qci-client` distribution", readme_words)
     @test occursin("Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\")", readme_text)
     @test occursin("QCIOpt.jl is currently a URL-only package", readme_words)
     @test occursin("not registered in the Julia General registry", readme_words)
@@ -122,6 +125,8 @@ import Pkg
     @test has_ci_matrix_entry("1", "ubuntu-latest")
     @test has_ci_matrix_entry("1.10", "windows-latest")
     @test has_ci_matrix_entry("1", "windows-latest")
+    @test occursin("QCIOpt + DWave coexistence", ci)
+    @test occursin("dwave_coexistence.jl", ci)
 
     @test uses_action_major_at_least("  uses: actions/checkout@v7\n", "actions/checkout", 6)
     @test !uses_action_major_at_least("  uses: actions/checkout@v5\n", "actions/checkout", 6)
