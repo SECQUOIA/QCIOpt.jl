@@ -73,6 +73,17 @@ for i = 1:result_count(model)
 end
 ```
 
+## Changing the backend device
+
+Device selection uses a typed first-party optimizer attribute, while the
+provider-specific tunables and credentials below use JuMP's raw optimizer
+attribute names. Selecting a device loads its default attributes, so choose the
+device before setting any tunables or credentials.
+
+```julia
+set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
+```
+
 ## Updating optimization parameters
 
 QCIOpt exposes provider-specific settings through JuMP's raw optimizer
@@ -83,18 +94,16 @@ defaults to `10` for the supported QCI devices.
 set_attribute(model, "num_samples", 10)
 ```
 
-## Changing the backend device
-
-```julia
-set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
-```
-
 ## API Token
 
 To access QCI's devices, create an account at
 [QCI](https://quantumcomputinginc.com/learn/developer-resources/entropy-quantum-optimization/qci-client-quick-start)
 and provide the API token through the `QCI_TOKEN` environment variable or an
 approved secret store. Do not commit or print the token.
+
+```shell
+$ export QCI_TOKEN="<your-qci-token>"
+```
 
 The `"api_token"` raw optimizer attribute accepts the token as a string. QCIOpt
 also reads `QCI_TOKEN` when the package loads. To configure a model explicitly,
@@ -104,8 +113,12 @@ read the same environment variable rather than embedding the token in source:
 set_attribute(model, "api_token", ENV["QCI_TOKEN"])
 ```
 
-Live QCI smoke tests are optional and require credentials. To run them locally, set
-`QCI_TOKEN` securely in the environment, then execute:
+Treat the token and optimizer state as sensitive. Reading the `"api_token"`
+attribute or dumping optimizer attributes can expose the credential; do not
+print either while debugging.
+
+Live QCI smoke tests are optional. Set both `QCI_TOKEN` and
+`QCI_RUN_LIVE_TESTS=true` in the environment; for example:
 
 ```shell
 $ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
