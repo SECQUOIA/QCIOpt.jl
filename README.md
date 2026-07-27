@@ -11,6 +11,20 @@ julia> import Pkg
 julia> Pkg.add(url="https://github.com/SECQUOIA/QCIOpt.jl")
 ```
 
+## QCIOpt and DWave
+
+QCIOpt and DWave can be installed in the same Julia environment with the
+default CondaPkg backend. QCIOpt does not install the `qci-client` distribution,
+whose `networkx<3` requirement conflicts with D-Wave Ocean. Instead, QCIOpt
+ships the small Qatalyst REST-client subset it uses and keeps its managed Python
+requirements to `numpy` and `requests`.
+
+No `JULIA_CONDAPKG_BACKEND=Null` or separately managed Python environment is
+needed for this supported configuration. CI imports QCIOpt and DWave v0.7.6
+together with NetworkX 3 to guard the reproducible shared-environment contract.
+A nonblocking scheduled canary also tracks DWave's default branch so upstream
+dependency changes are visible without weakening the pinned regression.
+
 ## Release Workflow
 
 QCIOpt.jl is currently a URL-only package. It is not registered in the Julia

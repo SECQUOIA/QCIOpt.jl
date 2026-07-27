@@ -7,11 +7,11 @@ import QUBODrivers: MOI, QUBOTools, Sample, SampleSet
 const DEFAULT_DEVICE_TYPE = "dirac-1"
 const DEFAULT_JOB_TYPE = "sample-qubo"
 
-function qci_client_version()
+function qci_client_bridge_version()
     return try
         QCIOpt.PythonCall.pyconvert(
             String,
-            QCIOpt.PythonCall.pyimport("importlib.metadata").version("qci-client"),
+            QCIOpt.qcic.__version__,
         )
     catch
         nothing
@@ -151,7 +151,7 @@ function default_backend_runner(
     return Dict{String,Any}(
         "response" => response,
         "metrics" => metrics,
-        "qci_client_version" => qci_client_version(),
+        "qci_client_bridge_version" => qci_client_bridge_version(),
         "request" => Dict{String,Any}(
             "file_id" => file_id,
             "num_samples" => num_samples,
@@ -171,7 +171,7 @@ uniform QUBODrivers sampler contract used by benchmark harnesses.
 """
 QUBODrivers.@setup Optimizer begin
     name = "QCI Dirac"
-    version = v"0.1.0"
+    version = pkgversion(QCIOpt)
     attributes = begin
         NumberOfSamples["num_samples"]::Integer = 10
         DeviceType["device_type"]::String = DEFAULT_DEVICE_TYPE
@@ -217,7 +217,11 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     )
     response = _backend_value(backend, "response")
     metrics = _backend_value(backend, "metrics")
-    backend_version = _backend_value(backend, "qci_client_version", qci_client_version())
+    backend_version = _backend_value(
+        backend,
+        "qci_client_bridge_version",
+        _backend_value(backend, "qci_client_version", qci_client_bridge_version()),
+    )
     request = _backend_value(backend, "request", Dict{String,Any}())
 
     samples = samples_from_response(T, response, linear, quadratic, scale, offset)
@@ -277,7 +281,7 @@ function metadata_from_response(
     problem_file_id = qubo_config isa AbstractDict ? get(qubo_config, "qubo_file_id", nothing) : nothing
 
     metadata = QUBODrivers._sampler_metadata(
-        origin = "QCI Dirac @ qci-client",
+        origin = "QCI Dirac @ QCIOpt client bridge",
         algorithm_name = "QCI Dirac",
         backend_name = "QCI Dirac",
         backend_version = backend_version,
@@ -320,7 +324,7 @@ function metadata_from_response(
         "job_submission" => job_submission,
         "metrics" => metrics,
         "request" => request,
-        "qci_client_version" => backend_version,
+        "qci_client_bridge_version" => backend_version,
     )
 
     return metadata

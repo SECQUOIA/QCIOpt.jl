@@ -6,6 +6,25 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 jobs:
+  python:
+    name: Python bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: test/python/requirements.txt
+      - name: Install Python test tools
+        run: python -m pip install --requirement test/python/requirements.txt
+      - name: Test Python bridge
+        run: pytest
+      - name: Lint Python bridge
+        run: ruff check python test/python
+      - name: Check Python formatting
+        run: black --check --diff python test/python
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
@@ -34,3 +53,26 @@ jobs:
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+  coexistence:
+    name: QCIOpt + DWave coexistence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.10'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Import QCIOpt and DWave with the default CondaPkg backend
+        run: |
+          julia --startup-file=no -e '
+            using Pkg
+            Pkg.activate(mktempdir())
+            Pkg.develop(path=pwd())
+            Pkg.add(PackageSpec(
+                url="https://github.com/JuliaQUBO/DWave.jl",
+                rev="065b744147d86cb02aa28eb7ce4574544df5c7c9",
+            ))
+            include(joinpath(pwd(), "test", "dwave_coexistence.jl"))
+          '

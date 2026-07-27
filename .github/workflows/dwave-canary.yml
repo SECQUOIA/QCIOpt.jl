@@ -1,0 +1,32 @@
+name: DWave coexistence canary
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+jobs:
+  coexistence-canary:
+    name: QCIOpt + DWave default-branch canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.10'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Import QCIOpt with DWave's default branch
+        run: |
+          julia --startup-file=no -e '
+            using Pkg
+            Pkg.activate(mktempdir())
+            Pkg.develop(path=pwd())
+            Pkg.add(url="https://github.com/JuliaQUBO/DWave.jl")
+            include(joinpath(pwd(), "test", "dwave_coexistence.jl"))
+          '

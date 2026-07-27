@@ -1,0 +1,16 @@
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["test/python"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.ruff.lint]
+# The bridge intentionally mirrors qci-client's local-time console timestamps,
+# so datetime-timezone rules are not part of this focused lint contract.
+select = ["E4", "E7", "E9", "F", "I"]

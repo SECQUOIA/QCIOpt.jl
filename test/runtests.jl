@@ -8,6 +8,7 @@ import MathOptInterface as MOI
     include("test_utils.jl")
     include("compat_metadata.jl")
     include("auth.jl")
+    include("client_bridge.jl")
     include("offline.jl")
     include("qubodrivers_sampler.jl")
     include("review_regressions.jl")

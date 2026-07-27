@@ -72,7 +72,7 @@ function mock_dirac_backend_runner(
                 ),
             ),
         ),
-        "qci_client_version" => "5.0.0",
+        "qci_client_bridge_version" => "qciopt-bridge-0.1.0",
         "request" => Dict{String,Any}("num_samples" => num_samples),
     )
 end
@@ -194,7 +194,7 @@ end
                         ),
                     ),
                 ),
-                "qci_client_version" => "5.0.0",
+                "qci_client_bridge_version" => "qciopt-bridge-0.1.0",
                 "request" => Dict{String,Any}("num_samples" => num_samples),
             )
         end
@@ -221,7 +221,7 @@ end
 
         @test isempty(QUBODrivers.validate_metadata(sampleset))
         @test metadata["backend"]["name"] == "QCI Dirac"
-        @test metadata["backend"]["version"] == "5.0.0"
+        @test metadata["backend"]["version"] == "qciopt-bridge-0.1.0"
         @test metadata["backend"]["device"] == "dirac-1"
         @test metadata["backend"]["job_id"] == "job-123"
         @test metadata["backend"]["result_file_id"] == "result-file-123"
@@ -234,7 +234,8 @@ end
         @test metadata["time"]["provider_processing"] ≈ 2.5
         @test metadata["time"]["device_usage"] == 2
         @test metadata["provider"]["metrics"]["job_id"] == "job-123"
-        @test metadata["provider"]["qci_client_version"] == "5.0.0"
+        @test metadata["provider"]["qci_client_bridge_version"] ==
+            "qciopt-bridge-0.1.0"
     end
 
     @testset "QUBODrivers conformance suite with mocked backend" begin
