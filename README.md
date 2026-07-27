@@ -73,40 +73,55 @@ for i = 1:result_count(model)
 end
 ```
 
-## Updating optimization parameters
-
-```julia
-set_attribute(model, QCIOpt.NumberOfReads(), 10) # Number of samples
-```
-
 ## Changing the backend device
+
+Device selection uses a typed first-party optimizer attribute, while the
+provider-specific tunables and credentials below use JuMP's raw optimizer
+attribute names. Selecting a device loads its default attributes, so choose the
+device before setting any tunables or credentials.
 
 ```julia
 set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
 ```
 
-## API Token
-To access QCI's devices, it is necessary to create an account at [QCI](https://quantumcomputinginc.com/learn/developer-resources/entropy-quantum-optimization/qci-client-quick-start) to obtain an API Token and define 
+## Updating optimization parameters
+
+QCIOpt exposes provider-specific settings through JuMP's raw optimizer
+attribute names. The `"num_samples"` attribute accepts a positive integer and
+defaults to `10` for the supported QCI devices.
 
 ```julia
-set_attribute(model, QCIOpt.APIToken(), "your_token_here")
+set_attribute(model, "num_samples", 10)
 ```
 
-Another option is to set the `QCI_TOKEN` environment variable before loading `QCIOpt.jl`:
+## API Token
+
+To access QCI's devices, create an account at
+[QCI](https://quantumcomputinginc.com/learn/developer-resources/entropy-quantum-optimization/qci-client-quick-start)
+and provide the API token through the `QCI_TOKEN` environment variable or an
+approved secret store. Do not commit or print the token.
 
 ```shell
-$ export QCI_TOKEN="your_token_here"
-
-$ julia
-
-julia> using QCIOpt
+$ export QCI_TOKEN="<your-qci-token>"
 ```
 
-Live QCI smoke tests are optional and require credentials. To run them locally, set
-`QCI_RUN_LIVE_TESTS=true` and `QCI_TOKEN`, then execute:
+The `"api_token"` raw optimizer attribute accepts the token as a string. QCIOpt
+also reads `QCI_TOKEN` when the package loads. To configure a model explicitly,
+read the same environment variable rather than embedding the token in source:
+
+```julia
+set_attribute(model, "api_token", ENV["QCI_TOKEN"])
+```
+
+Treat the token and optimizer state as sensitive. Reading the `"api_token"`
+attribute or dumping optimizer attributes can expose the credential; do not
+print either while debugging.
+
+Live QCI smoke tests are optional. Set both `QCI_TOKEN` and
+`QCI_RUN_LIVE_TESTS=true` in the environment; for example:
 
 ```shell
-$ QCI_RUN_LIVE_TESTS=true QCI_TOKEN="your_token_here" julia --project=. -e 'using Pkg; Pkg.test()'
+$ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
 In GitHub Actions, live QCI tests run from the manual and weekly scheduled
