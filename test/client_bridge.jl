@@ -1,8 +1,14 @@
 @testset "QCI client compatibility bridge" begin
+    bridge_version = "qciopt-bridge-$(pkgversion(QCIOpt))"
+
     @test QCIOpt.PythonCall.pyconvert(String, QCIOpt.qcic.__name__) == "qciopt_client"
-    @test QCIOpt.PythonCall.pyconvert(String, QCIOpt.qcic.__version__) == "5.0.0-compat"
-    @test QCIOpt.DiracSampler.qci_client_version() == "5.0.0-compat"
-    @test MOI.get(QCIOpt.Optimizer(), MOI.SolverVersion()) == v"0.1.0"
+    @test QCIOpt.PythonCall.pyconvert(String, QCIOpt.qcic.__version__) == bridge_version
+    @test QCIOpt.PythonCall.pyconvert(
+        String,
+        QCIOpt.qcic.__qci_client_parity_version__,
+    ) == "5.0.0"
+    @test QCIOpt.DiracSampler.qci_client_bridge_version() == bridge_version
+    @test MOI.get(QCIOpt.Optimizer(), MOI.SolverVersion()) == pkgversion(QCIOpt)
 
     qubo_file = QCIOpt.qci_data_file([1.0 -0.5; -0.5 2.0])
     converted = QCIOpt.jl_object(QCIOpt.qcic._data_to_json(QCIOpt.py_object(qubo_file)))

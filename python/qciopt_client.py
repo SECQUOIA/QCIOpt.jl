@@ -3,13 +3,14 @@
 The public ``qci-client`` distribution currently pins NetworkX below version 3,
 which conflicts with D-Wave Ocean. QCIOpt only needs a narrow part of that
 client, so this module implements that part directly with requests and numpy.
+Its request and response shapes track ``qci-client`` 5.0.0.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import os
 import time
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urljoin
@@ -18,7 +19,8 @@ import numpy as np
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
-__version__ = "5.0.0-compat"
+__version__ = "qciopt-bridge-0.1.0"
+__qci_client_parity_version__ = "5.0.0"
 
 _BACKOFF_FACTOR = 2
 _CHUNK_SIZE = 10_000
@@ -199,7 +201,6 @@ class OptimizationClient:
         url: str | None = None,
         api_token: str | None = None,
         timeout: float | None = None,
-        **_: Any,
     ):
         self._auth_client = AuthClient(
             url=url,
@@ -392,7 +393,6 @@ class OptimizationClient:
         polynomial_file_id: str | None = None,
         job_name: str | None = None,
         job_tags: list[str] | None = None,
-        **_: Any,
     ) -> dict[str, Any]:
         """Build the QUBO or integer-polynomial job body used by QCIOpt."""
         device_type = job_params.get("device_type")

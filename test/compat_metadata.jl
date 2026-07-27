@@ -82,6 +82,7 @@ import Pkg
     ci = workflow_texts["ci.yml"]
     docs = workflow_texts["docs.yml"]
     docscleanup = workflow_texts["docscleanup.yml"]
+    dwave_canary = workflow_texts["dwave-canary.yml"]
     liveqci = workflow_texts["live-qci.yml"]
     all_workflows = join((workflow_texts[file] for file in workflow_files), "\n")
 
@@ -127,6 +128,14 @@ import Pkg
     @test has_ci_matrix_entry("1", "windows-latest")
     @test occursin("QCIOpt + DWave coexistence", ci)
     @test occursin("dwave_coexistence.jl", ci)
+    @test occursin("Python bridge", ci)
+    @test occursin("pytest", ci)
+    @test occursin("ruff check python test/python", ci)
+    @test occursin("black --check --diff python test/python", ci)
+    @test occursin("QCIOpt + DWave default-branch canary", dwave_canary)
+    @test occursin("continue-on-error: true", dwave_canary)
+    @test occursin("schedule:", dwave_canary)
+    @test occursin("Pkg.add(url=\"https://github.com/JuliaQUBO/DWave.jl\")", dwave_canary)
 
     @test uses_action_major_at_least("  uses: actions/checkout@v7\n", "actions/checkout", 6)
     @test !uses_action_major_at_least("  uses: actions/checkout@v5\n", "actions/checkout", 6)
@@ -137,7 +146,11 @@ import Pkg
     @test uses_action_major_at_least(ci, "julia-actions/cache", 3)
     @test uses_action_major_at_least(ci, "julia-actions/julia-buildpkg", 1)
     @test uses_action_major_at_least(ci, "julia-actions/julia-runtest", 1)
+    @test uses_action_major_at_least(ci, "actions/setup-python", 7)
     @test !occursin("QCI_TOKEN", ci)
+    @test uses_action_major_at_least(dwave_canary, "actions/checkout", 6)
+    @test uses_action_major_at_least(dwave_canary, "julia-actions/setup-julia", 3)
+    @test uses_action_major_at_least(dwave_canary, "julia-actions/cache", 3)
     @test uses_action_major_at_least(docs, "actions/checkout", 6)
     @test uses_action_major_at_least(docs, "julia-actions/setup-julia", 3)
     @test uses_action_major_at_least(docs, "julia-actions/julia-buildpkg", 1)

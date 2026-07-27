@@ -21,7 +21,9 @@ requirements to `numpy` and `requests`.
 
 No `JULIA_CONDAPKG_BACKEND=Null` or separately managed Python environment is
 needed for this supported configuration. CI imports QCIOpt and DWave v0.7.6
-together with NetworkX 3 to guard the shared-environment contract.
+together with NetworkX 3 to guard the reproducible shared-environment contract.
+A nonblocking scheduled canary also tracks DWave's default branch so upstream
+dependency changes are visible without weakening the pinned regression.
 
 ## Release Workflow
 
