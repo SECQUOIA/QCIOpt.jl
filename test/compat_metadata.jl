@@ -60,7 +60,10 @@ import Pkg
     @test haskey(condapkg["pip"]["deps"], "numpy")
     @test occursin("QCIOpt and DWave", readme_text)
     @test occursin("does not install the `qci-client` distribution", readme_words)
-    @test occursin("Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\")", readme_text)
+    @test occursin(
+        "Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\", rev=\"v0.1.0\")",
+        readme_text,
+    )
     @test occursin("QCIOpt.jl is currently a URL-only package", readme_words)
     @test occursin("not registered in the Julia General registry", readme_words)
     @test occursin("does not use TagBot or registry-based release automation", readme_words)
