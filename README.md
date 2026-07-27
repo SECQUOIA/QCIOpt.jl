@@ -52,8 +52,6 @@ Manual release checklist:
 using JuMP
 using QCIOpt
 
-import MathOptInterface as MOI
-
 model = Model(QCIOpt.Optimizer)
 
 Q = [
@@ -77,16 +75,12 @@ end
 
 ## Updating optimization parameters
 
-QCIOpt exposes provider-specific settings as MOI raw optimizer attributes. The
-`"num_samples"` attribute accepts a positive integer and defaults to `10` for
-the supported QCI devices.
+QCIOpt exposes provider-specific settings through JuMP's raw optimizer
+attribute names. The `"num_samples"` attribute accepts a positive integer and
+defaults to `10` for the supported QCI devices.
 
 ```julia
-set_attribute(
-    model,
-    MOI.RawOptimizerAttribute("num_samples"),
-    10,
-)
+set_attribute(model, "num_samples", 10)
 ```
 
 ## Changing the backend device
@@ -107,11 +101,7 @@ also reads `QCI_TOKEN` when the package loads. To configure a model explicitly,
 read the same environment variable rather than embedding the token in source:
 
 ```julia
-set_attribute(
-    model,
-    MOI.RawOptimizerAttribute("api_token"),
-    ENV["QCI_TOKEN"],
-)
+set_attribute(model, "api_token", ENV["QCI_TOKEN"])
 ```
 
 Live QCI smoke tests are optional and require credentials. To run them locally, set
