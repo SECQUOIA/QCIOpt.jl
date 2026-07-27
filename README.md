@@ -52,6 +52,8 @@ Manual release checklist:
 using JuMP
 using QCIOpt
 
+import MathOptInterface as MOI
+
 model = Model(QCIOpt.Optimizer)
 
 Q = [
@@ -75,8 +77,16 @@ end
 
 ## Updating optimization parameters
 
+QCIOpt exposes provider-specific settings as MOI raw optimizer attributes. The
+`"num_samples"` attribute accepts a positive integer and defaults to `10` for
+the supported QCI devices.
+
 ```julia
-set_attribute(model, QCIOpt.NumberOfReads(), 10) # Number of samples
+set_attribute(
+    model,
+    MOI.RawOptimizerAttribute("num_samples"),
+    10,
+)
 ```
 
 ## Changing the backend device
@@ -86,27 +96,29 @@ set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
 ```
 
 ## API Token
-To access QCI's devices, it is necessary to create an account at [QCI](https://quantumcomputinginc.com/learn/developer-resources/entropy-quantum-optimization/qci-client-quick-start) to obtain an API Token and define 
+
+To access QCI's devices, create an account at
+[QCI](https://quantumcomputinginc.com/learn/developer-resources/entropy-quantum-optimization/qci-client-quick-start)
+and provide the API token through the `QCI_TOKEN` environment variable or an
+approved secret store. Do not commit or print the token.
+
+The `"api_token"` raw optimizer attribute accepts the token as a string. QCIOpt
+also reads `QCI_TOKEN` when the package loads. To configure a model explicitly,
+read the same environment variable rather than embedding the token in source:
 
 ```julia
-set_attribute(model, QCIOpt.APIToken(), "your_token_here")
-```
-
-Another option is to set the `QCI_TOKEN` environment variable before loading `QCIOpt.jl`:
-
-```shell
-$ export QCI_TOKEN="your_token_here"
-
-$ julia
-
-julia> using QCIOpt
+set_attribute(
+    model,
+    MOI.RawOptimizerAttribute("api_token"),
+    ENV["QCI_TOKEN"],
+)
 ```
 
 Live QCI smoke tests are optional and require credentials. To run them locally, set
-`QCI_RUN_LIVE_TESTS=true` and `QCI_TOKEN`, then execute:
+`QCI_TOKEN` securely in the environment, then execute:
 
 ```shell
-$ QCI_RUN_LIVE_TESTS=true QCI_TOKEN="your_token_here" julia --project=. -e 'using Pkg; Pkg.test()'
+$ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
 In GitHub Actions, live QCI tests run from the manual and weekly scheduled
