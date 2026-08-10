@@ -68,6 +68,8 @@ the negated polynomial is stored and submitted; original objective values are
 restored in [`readjust_poly_values`](@ref).
 
 Returns the vector of `DynamicPolynomials` variables in model variable order.
+The variable domains are validated later, by [`variable_domains`](@ref), which
+`qci_optimize!` calls before any network access.
 """
 function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike) where {T}
     n = MOI.get(model, MOI.NumberOfVariables())
@@ -78,13 +80,9 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLik
         var_map!(device.varmap, vi, x[i])
     end
 
-    # TODO: Adjust variable bounds
-    # (see `DynamicPolynomials.subs` @ https://juliaalgebra.github.io/MultivariatePolynomials.jl/stable/substitution/)
-    # This has to return:
-    # 1. A new, modified polynomial such that each original variable xᵢ ∈ [l, u] becomes xᵢ ∈ [0, u - l] under
-    #    the substitution rule xᵢ ↦ (xᵢ - l) for the integer case and xᵢ ↦ (xᵢ - l) / (u - l) for the real case
-    #    where xᵢ ∈ [0, 1] (to be rescaled later according to variable precision)
-    # 2. The new variable bounds, to be passed as qci_build_job_body(...; ..., num_levels = variable_bounds::Vector{Int})
+    # Bounds and integrality feed the transformation contract implemented by
+    # `variable_domains`, `rescale_variables`, `get_levels`, and
+    # `readjust_poly_values`.
     retrieve_variable_bounds!(solver, model)
 
     copy_model_attributes!(solver, model)
@@ -108,17 +106,15 @@ Submit the loaded model to the DIRAC-3 device and store the parsed results.
 function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
     x = qci_load!(solver, device, model)
 
-    poly = rescale_variables(
-        device.poly,
-        x,
-        [solver.lower[vi] for vi in map(xi -> var_inv(device.varmap, xi), x)],
-        [solver.upper[vi] for vi in map(xi -> var_inv(device.varmap, xi), x)],
-    )
+    domains = variable_domains(solver, device, x)
 
-    num_levels = get_levels(solver, device, x)
+    poly = rescale_variables(device.poly, x, T[li for (li, _) in domains])
 
-    @assert sum(num_levels) <= qci_max_level(device)
-    
+    num_levels = get_levels(domains)
+
+    assert_level_budget(num_levels, qci_max_level(device))
+
+
     silent              = MOI.get(solver, MOI.Silent())
     file_name           = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
     num_samples         = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
@@ -168,35 +164,142 @@ end
 
 qci_max_level(::DIRAC_3) = qci_is_free_tier() ? 500 : 949
 
+@doc raw"""
+    variable_domains(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
+
+Return the integer domain `(lᵢ, uᵢ)` that DIRAC-3 samples for each variable in
+`vars`, in the order given, validating the model against what the device can
+represent.
+
+DIRAC-3 receives `sample-hamiltonian-integer` jobs, whose variable `i` takes
+the `num_levelsᵢ` consecutive integer values `0, 1, …, num_levelsᵢ - 1`. The
+transformation contract is therefore:
+
+1. every variable is integer-valued and box-bounded, so its domain is the
+   integer interval `[lᵢ, uᵢ] = [ceil(lowerᵢ), floor(upperᵢ)]`;
+2. the objective is submitted after the substitution `xᵢ ↦ xᵢ + lᵢ`
+   ([`rescale_variables`](@ref)), which moves that domain onto `[0, uᵢ - lᵢ]`;
+3. the device is told `num_levelsᵢ = uᵢ - lᵢ + 1` ([`get_levels`](@ref));
+4. a returned point `yᵢ` maps back as `xᵢ = yᵢ + lᵢ`
+   ([`readjust_poly_values`](@ref)), inverting step 2.
+
+Steps 2 and 4 must use the same `lᵢ` computed here, which is why each step
+derives its bounds from this function rather than from `solver.lower` directly:
+for an `Int` variable declared over fractional bounds the sampled lattice starts
+at `ceil(lowerᵢ)`, not at `lowerᵢ`.
+
+Throws an `ErrorException` naming the offending variable when a domain is
+unbounded, infinite, free of integer points, or continuous.
+"""
+function variable_domains(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
+    return map(xi -> variable_domain(solver, device, xi), vars)
+end
+
+function variable_domain(solver::Optimizer{T}, device::DIRAC_3{T}, xi::PolyVar) where {T}
+    vi = var_inv(device.varmap, xi)
+
+    if !haskey(solver.lower, vi) || !haskey(solver.upper, vi)
+        error(
+            "DIRAC-3 requires a finite lower and upper bound on every variable, but " *
+            "variable index $(vi.value) is missing " *
+            (haskey(solver.lower, vi) ? "an upper" : "a lower") *
+            " bound. Bound it, e.g. `@variable(model, l <= x <= u, Int)`.",
+        )
+    end
+
+    lo = solver.lower[vi]
+    up = solver.upper[vi]
+
+    if !isfinite(lo) || !isfinite(up)
+        error(
+            "DIRAC-3 requires a finite lower and upper bound on every variable, but " *
+            "variable index $(vi.value) is bounded by [$(lo), $(up)]. " *
+            "Bound it, e.g. `@variable(model, l <= x <= u, Int)`.",
+        )
+    end
+
+    # A variable pinned by `MOI.EqualTo` spans a single level, so it is
+    # representable whether or not the model also declares it integral.
+    if !(vi in solver.integral) && !haskey(solver.fixed, vi)
+        error(
+            "DIRAC-3 samples integer-valued variables only, but variable index " *
+            "$(vi.value) is continuous. Declare it as `Int` or `Bin`, or fix it to a " *
+            "single value. Continuous DIRAC-3 jobs use the `sample-hamiltonian` job " *
+            "type, whose simplex `sum_constraint` domain is not expressible as " *
+            "variable bounds, and QCIOpt does not submit it.",
+        )
+    end
+
+    li = ceil(Int, lo)
+    ui = floor(Int, up)
+
+    if li > ui
+        error(
+            "DIRAC-3 requires a nonempty integer domain, but variable index " *
+            "$(vi.value) is bounded by [$(lo), $(up)], which contains no integer point.",
+        )
+    end
+
+    return (li, ui)
+end
+
+@doc raw"""
+    get_levels(domains::AbstractVector{Tuple{Int,Int}})
+    get_levels(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
+
+Number of levels DIRAC-3 allocates per variable: one per integer point of the
+transformed domain `[0, uᵢ - lᵢ]`. See [`variable_domains`](@ref).
+"""
+get_levels(domains::AbstractVector{Tuple{Int,Int}}) = [ui - li + 1 for (li, ui) in domains]
+
 function get_levels(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
-    return map(
-        xi -> let vi = var_inv(device.varmap, xi)
-            1 + (floor(Int, solver.upper[vi]) - ceil(Int, solver.lower[vi]))
-        end,
-        vars,
-    )
+    return get_levels(variable_domains(solver, device, vars))
+end
+
+@doc raw"""
+    assert_level_budget(num_levels::AbstractVector{<:Integer}, limit::Integer)
+
+Check the per-variable level counts against the total level budget of the
+current allocation (see [`qci_max_level`](@ref)), which the device enforces
+across all variables of a job.
+"""
+function assert_level_budget(num_levels::AbstractVector{<:Integer}, limit::Integer)
+    total = sum(num_levels; init = 0)
+
+    if total > limit
+        error(
+            "This model needs $(total) DIRAC-3 levels across $(length(num_levels)) " *
+            "variables, exceeding the $(limit)-level budget of the current allocation. " *
+            "Tighten the variable bounds or use fewer variables.",
+        )
+    end
+
+    return nothing
 end
 
 @doc raw"""
     readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
 
 Map provider sample points back to the original variable domain (adding each
-variable's lower bound) and recompute objective values from the stored
-polynomial, restoring the original model's objective for `MAX_SENSE` models.
-Returns the samples ordered best-first for the given sense.
+variable's transformed lower bound, see [`variable_domains`](@ref)) and
+recompute objective values from the stored polynomial, restoring the original
+model's objective for `MAX_SENSE` models. Returns the samples ordered
+best-first for the given sense.
 """
 function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
+
+    # Inverts the substitution `rescale_variables` applied, so both must read
+    # the same lower bound.
+    domains = variable_domains(solver, device, vars)
 
     for sample in samples
         point = Vector{T}(undef, length(vars))
         x     = Vector{PolyVar}(undef, length(vars))
 
-        for xi in vars
+        for (xi, (li, _)) in zip(vars, domains)
             vi = var_inv(device.varmap, xi)
             i  = var_idx(device.varmap, vi)
-
-            li = solver.lower[vi]
 
             point[i] = sample.point[i] + li
             x[i]     = xi

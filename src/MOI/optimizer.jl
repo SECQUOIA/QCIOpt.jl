@@ -103,6 +103,7 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
     lower::Dict{VI,T}
     upper::Dict{VI,T}
     fixed::Dict{VI,T}
+    integral::Set{VI}
 
     # Results
     solution::Solution{T,T}
@@ -119,6 +120,7 @@ mutable struct Optimizer{T} <: MOI.AbstractOptimizer
             Dict{VI,T}(),                   # lower
             Dict{VI,T}(),                   # upper
             Dict{VI,T}(),                   # fixed
+            Set{VI}(),                      # integral
             Solution{T,T}(),                # solution
             qci_default_attributes(device), # attributes
         )
@@ -134,6 +136,7 @@ function MOI.empty!(solver::Optimizer{T}) where {T}
     empty!(solver.lower)
     empty!(solver.upper)
     empty!(solver.fixed)
+    empty!(solver.integral)
 
     empty!(solver.solution)
 
@@ -147,7 +150,8 @@ function MOI.is_empty(solver::Optimizer{T})::Bool where {T}
     isempty(solver.lower) || return false
     isempty(solver.upper) || return false
     isempty(solver.fixed) || return false
-    
+    isempty(solver.integral) || return false
+
     isempty(solver.solution) || return false
 
     return true
@@ -285,7 +289,14 @@ end
 @doc raw"""
     retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
-Retrieve variable bounds from the model and store them in the solver. 
+Retrieve variable bounds and integrality from the model and store them in the
+solver.
+
+Several constraints may bound the same variable, so bounds are *intersected*
+rather than relaxed: the stored lower bound is the largest one seen and the
+stored upper bound the smallest, which is the tightest box the model implies.
+`MOI.EqualTo` pins a variable outright and overrides both.
+
 - vi: variable index
 - li: lower bound
 - ui: upper bound
@@ -293,8 +304,16 @@ Retrieve variable bounds from the model and store them in the solver.
 - ci: constraint index
 """
 function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, MOI.Integer}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+
+        push!(solver.integral, vi)
+    end
+
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI, MOI.ZeroOne}())
         vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+
+        push!(solver.integral, vi)
 
         if haskey(solver.lower, vi)
             solver.lower[vi] = max(solver.lower[vi], zero(T))
@@ -303,7 +322,7 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
         end
 
         if haskey(solver.upper, vi)
-            solver.upper[vi] = max(solver.upper[vi], one(T))
+            solver.upper[vi] = min(solver.upper[vi], one(T))
         else
             solver.upper[vi] = one(T)
         end
@@ -325,7 +344,7 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
         ui = MOI.get(model, MOI.ConstraintSet(), ci).upper
 
         if haskey(solver.upper, vi)
-            solver.upper[vi] = max(solver.upper[vi], ui)
+            solver.upper[vi] = min(solver.upper[vi], ui)
         else
             solver.upper[vi] = ui
         end
@@ -347,7 +366,7 @@ function retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) w
         end
 
         if haskey(solver.upper, vi)
-            solver.upper[vi] = max(solver.upper[vi], ui)
+            solver.upper[vi] = min(solver.upper[vi], ui)
         else
             solver.upper[vi] = ui
         end
@@ -383,9 +402,25 @@ function fix_variables(p::Poly{T}, fix)::Poly{T} where {T}
     end
 end
 
-function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}, u::AbstractVector{T}) where {T}
+@doc raw"""
+    rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}) where {T}
+
+Shift the domain of `p` so that each variable starts at zero, returning the
+polynomial the device actually receives.
+
+The device samples `yᵢ ∈ [0, uᵢ - lᵢ]`, while the model variable lives on
+`xᵢ ∈ [lᵢ, uᵢ]`. Submitting `p(y + l)` — the substitution `xᵢ ↦ xᵢ + lᵢ` — is
+what makes the two agree, because the inverse mapping applied to a returned
+point is `xᵢ = yᵢ + lᵢ` (see [`readjust_poly_values`](@ref)). Substituting
+`xᵢ ↦ xᵢ - lᵢ` instead would submit `p(y - l)`, so the device would optimize
+over `[2lᵢ, uᵢ]` and the mapped-back point would not be the argument that
+produced the sampled value.
+
+Variables with `lᵢ == 0` are skipped, since the shift is the identity there.
+"""
+function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}) where {T}
     # NOTE: This only works for the integer case!
-    subs = [xi => (xi - li) for (xi, li, ui) in zip(vars, l, u) if !iszero(l)]
+    subs = [xi => (xi + li) for (xi, li) in zip(vars, l) if !iszero(li)]
 
     if isempty(subs)
         return p
