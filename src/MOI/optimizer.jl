@@ -419,7 +419,6 @@ produced the sampled value.
 Variables with `lᵢ == 0` are skipped, since the shift is the identity there.
 """
 function rescale_variables(p::Poly{T}, vars::AbstractVector{PolyVar}, l::AbstractVector{T}) where {T}
-    # NOTE: This only works for the integer case!
     subs = [xi => (xi + li) for (xi, li) in zip(vars, l) if !iszero(li)]
 
     if isempty(subs)

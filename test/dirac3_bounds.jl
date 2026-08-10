@@ -50,12 +50,14 @@
         return (; solver, device, vars)
     end
 
-    # The polynomial actually submitted to the device.
-    function submitted(solver, device, vars)
-        domains = QCIOpt.variable_domains(solver, device, vars)
+    # Everything the device is sent, built through the production path rather
+    # than by re-deriving it here: a test that mirrored `qci_optimize!`'s wiring
+    # would stay green if that wiring were reconnected to the raw lower bound.
+    request(solver, device, vars; kwargs...) =
+        QCIOpt.qci_build_poly_request(solver, device, vars; kwargs...)
 
-        return QCIOpt.rescale_variables(device.poly, vars, Float64[li for (li, _) in domains])
-    end
+    # The polynomial actually submitted to the device.
+    submitted(solver, device, vars) = request(solver, device, vars).poly
 
     x_grid = [(x1, x2) for x1 in -3:-1 for x2 in 2:5]
     y_grid = [(y1, y2) for y1 in 0:2 for y2 in 0:3]
@@ -106,13 +108,9 @@
     @testset "Request construction" begin
         (; solver, device, vars) = load(bounded_model())
 
-        poly = submitted(solver, device, vars)
-
-        file = QCIOpt.qci_data_file(
-            xi -> QCIOpt.var_idx(device.varmap, QCIOpt.var_inv(device.varmap, xi)),
-            poly,
-        )
-        config = file["file_config"]["polynomial"]
+        # The exact request `qci_optimize!` submits, minus the upload.
+        req = request(solver, device, vars)
+        config = req.file["file_config"]["polynomial"]
 
         @test config["num_variables"] == 2
         @test config["min_degree"] == 1
@@ -128,7 +126,12 @@
             [1, 2] => 4.0,
         )
 
-        @test QCIOpt.get_levels(solver, device, vars) == [3, 4]
+        # The level counts submitted alongside the file.
+        @test req.num_levels == [3, 4]
+        @test QCIOpt.get_levels(solver, device, vars) == req.num_levels
+
+        # No file is written unless the `file_name` attribute asks for one.
+        @test req.file["file_name"] == ""
     end
 
     @testset "Returned sample and objective reconstruction" begin
@@ -296,6 +299,22 @@
             @test err isa ErrorException
             @test occursin("501 DIRAC-3 levels across 2 variables", sprint(showerror, err))
             @test occursin("500-level budget", sprint(showerror, err))
+
+            # The budget is enforced on the submission path, before the request
+            # body is built. The model below needs 3 + 4 = 7 levels.
+            (; solver, device, vars) = load(bounded_model())
+
+            @test request(solver, device, vars; max_level = 7).num_levels == [3, 4]
+
+            err = try
+                request(solver, device, vars; max_level = 6)
+                nothing
+            catch err
+                err
+            end
+
+            @test err isa ErrorException
+            @test occursin("7 DIRAC-3 levels across 2 variables", sprint(showerror, err))
         end
     end
 

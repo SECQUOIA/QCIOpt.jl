@@ -18,6 +18,7 @@ implement its individual steps.
 
 ```@docs
 QCIOpt.variable_domains
+QCIOpt.qci_build_poly_request
 QCIOpt.rescale_variables
 QCIOpt.get_levels
 QCIOpt.assert_level_budget

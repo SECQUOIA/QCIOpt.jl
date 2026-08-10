@@ -106,30 +106,28 @@ Submit the loaded model to the DIRAC-3 device and store the parsed results.
 function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
     x = qci_load!(solver, device, model)
 
-    domains = variable_domains(solver, device, x)
-
-    poly = rescale_variables(device.poly, x, T[li for (li, _) in domains])
-
-    num_levels = get_levels(domains)
-
-    assert_level_budget(num_levels, qci_max_level(device))
-
-
     silent              = MOI.get(solver, MOI.Silent())
     file_name           = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
     num_samples         = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
     relaxation_schedule = MOI.get(solver, MOI.RawOptimizerAttribute("relaxation_schedule"))
 
+    request = qci_build_poly_request(
+        solver,
+        device,
+        x;
+        file_name,
+        max_level = qci_max_level(device),
+    )
+
     job_params = Dict{Symbol,Any}(
         :device_type         => "dirac-3",
         :job_type            => "sample-hamiltonian-integer",
-        :num_levels          => num_levels,
+        :num_levels          => request.num_levels,
         :num_samples         => num_samples,
         :relaxation_schedule => relaxation_schedule,
     )
 
-    file     = qci_data_file(xi -> var_idx(device.varmap, var_inv(device.varmap, xi)), poly; file_name)
-    file_id  = qci_upload_file(file; api_token)
+    file_id  = qci_upload_file(request.file; api_token)
     job_body = qci_build_poly_job_body(file_id; api_token, job_params...) # TODO: Pass Parameters for this
     response = qci_process_job(job_body; api_token, verbose = !silent)
     solution = qci_parse_results(T, T, response)
@@ -163,6 +161,38 @@ function qci_store_results!(
 end
 
 qci_max_level(::DIRAC_3) = qci_is_free_tier() ? 500 : 949
+
+@doc raw"""
+    qci_build_poly_request(solver::Optimizer{T}, device::DIRAC_3{T}, vars; file_name = nothing, max_level = nothing) where {T}
+
+Build everything a DIRAC-3 submission needs from a loaded model, without
+touching the network: the shifted polynomial, the polynomial file body, and the
+per-variable level counts. This is the whole transformation half of
+[`qci_optimize!`](@ref), split out so it can be exercised offline.
+
+Applies the contract documented on [`variable_domains`](@ref). When `max_level`
+is given, the level budget is checked before the file body is built, so an
+oversized model fails before anything is written or uploaded.
+
+Returns a named tuple `(; poly, file, num_levels)`.
+"""
+function qci_build_poly_request(
+    solver::Optimizer{T},
+    device::DIRAC_3{T},
+    vars;
+    file_name::Union{AbstractString,Nothing} = nothing,
+    max_level::Union{Integer,Nothing} = nothing,
+) where {T}
+    domains    = variable_domains(solver, device, vars)
+    num_levels = get_levels(domains)
+
+    isnothing(max_level) || assert_level_budget(num_levels, max_level)
+
+    poly = rescale_variables(device.poly, vars, T[li for (li, _) in domains])
+    file = qci_data_file(xi -> var_idx(device.varmap, var_inv(device.varmap, xi)), poly; file_name)
+
+    return (; poly, file, num_levels)
+end
 
 @doc raw"""
     variable_domains(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
