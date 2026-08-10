@@ -318,6 +318,71 @@
             @test err isa ErrorException
             @test occursin("7 DIRAC-3 levels across 2 variables", sprint(showerror, err))
         end
+
+        @testset "level counts cannot overflow past the budget" begin
+            # A single span wider than `typemax(Int)`. Computed as `uᵢ - lᵢ + 1`
+            # in `Int`, `[-9e18, 9e18]` wraps to -446744073709551615, which
+            # compares below any budget and lets a negative level count reach
+            # the provider.
+            (; solver, device, vars) = load(
+                bounded_model(; lower = (-9e18, 2.0), upper = (9e18, 5.0)),
+            )
+
+            err = try
+                QCIOpt.variable_domains(solver, device, vars)
+                nothing
+            catch err
+                err
+            end
+
+            @test err isa ErrorException
+            @test occursin("cannot represent the domain", sprint(showerror, err))
+            # The true count, not the wrapped one.
+            @test occursin("18000000000000000001 integer points", sprint(showerror, err))
+
+            # Bounds beyond the machine integer range reach the same error
+            # rather than an `InexactError` from the rounding conversion.
+            (; solver, device, vars) = load(
+                bounded_model(; lower = (-1e19, 2.0), upper = (1e19, 5.0)),
+            )
+
+            err = try
+                QCIOpt.variable_domains(solver, device, vars)
+                nothing
+            catch err
+                err
+            end
+
+            @test err isa ErrorException
+            @test occursin("cannot represent the domain", sprint(showerror, err))
+
+            # Per-variable counts that are individually representable but whose
+            # total wraps: 2^62 + 2^62 == typemin(Int) in `Int` arithmetic.
+            @test sum([2^62, 2^62]) < 0
+
+            err = try
+                QCIOpt.assert_level_budget([2^62, 2^62], 500)
+                nothing
+            catch err
+                err
+            end
+
+            @test err isa ErrorException
+            @test occursin("9223372036854775808 DIRAC-3 levels", sprint(showerror, err))
+
+            # Non-positive counts are rejected rather than passing the budget.
+            for counts in ([0, 3], [-5, 3])
+                err = try
+                    QCIOpt.assert_level_budget(counts, 500)
+                    nothing
+                catch err
+                    err
+                end
+
+                @test err isa ErrorException
+                @test occursin("at least one level per variable", sprint(showerror, err))
+            end
+        end
     end
 
     @testset "Domain errors do not require credentials" begin

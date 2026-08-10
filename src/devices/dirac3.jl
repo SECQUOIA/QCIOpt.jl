@@ -167,7 +167,7 @@ qci_max_level(::DIRAC_3) = qci_is_free_tier() ? 500 : 949
 Build everything a DIRAC-3 submission needs from a loaded model, without
 touching the network: the shifted polynomial, the polynomial file body, and the
 per-variable level counts. This is the whole transformation half of
-[`qci_optimize!`](@ref), split out so it can be exercised offline.
+`qci_optimize!`, split out so it can be exercised offline.
 
 Applies the contract documented on [`variable_domains`](@ref), and so raises that
 function's domain errors. Being network-free is what lets an unusable model fail
@@ -217,7 +217,8 @@ for an `Int` variable declared over fractional bounds the sampled lattice starts
 at `ceil(lowerᵢ)`, not at `lowerᵢ`.
 
 Throws an `ErrorException` naming the offending variable when a domain is
-unbounded, infinite, free of integer points, or continuous.
+unbounded, infinite, free of integer points, continuous, or wider than the
+machine integer range can count.
 """
 function variable_domains(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
     return map(xi -> variable_domain(solver, device, xi), vars)
@@ -258,8 +259,11 @@ function variable_domain(solver::Optimizer{T}, device::DIRAC_3{T}, xi::PolyVar) 
         )
     end
 
-    li = ceil(Int, lo)
-    ui = floor(Int, up)
+    # Widen before rounding: `ceil(Int, ...)` throws `InexactError` on bounds
+    # past the machine integer range, and the level count below can exceed that
+    # range even when both bounds fit inside it.
+    li = ceil(BigInt, lo)
+    ui = floor(BigInt, up)
 
     if li > ui
         error(
@@ -268,7 +272,17 @@ function variable_domain(solver::Optimizer{T}, device::DIRAC_3{T}, xi::PolyVar) 
         )
     end
 
-    return (li, ui)
+    if li < typemin(Int) || ui > typemax(Int) || (ui - li + 1) > typemax(Int)
+        error(
+            "DIRAC-3 cannot represent the domain of variable index $(vi.value): " *
+            "[$(lo), $(up)] covers $(ui - li + 1) integer points between $(li) and " *
+            "$(ui), which does not fit in the machine integer range. A job allocates " *
+            "one level per integer point, and the allocation budget is a few hundred, " *
+            "so tighten the bounds.",
+        )
+    end
+
+    return (Int(li), Int(ui))
 end
 
 @doc raw"""
@@ -288,11 +302,23 @@ end
     assert_level_budget(num_levels::AbstractVector{<:Integer}, limit::Integer)
 
 Check the per-variable level counts against the total level budget of the
-current allocation (see [`qci_max_level`](@ref)), which the device enforces
-across all variables of a job.
+current allocation (see `qci_max_level`), which the device enforces across all
+variables of a job.
+
+The total is accumulated in `BigInt`: per-variable counts that are individually
+representable can still sum past `typemax(Int)`, and a wrapped negative total
+would compare below any budget and let the job through.
 """
 function assert_level_budget(num_levels::AbstractVector{<:Integer}, limit::Integer)
-    total = sum(num_levels; init = 0)
+    if any(<(one(eltype(num_levels))), num_levels)
+        error(
+            "DIRAC-3 needs at least one level per variable, but the requested counts " *
+            "include $(minimum(num_levels)). This usually means a variable's bounds " *
+            "describe an empty or unrepresentable domain.",
+        )
+    end
+
+    total = sum(BigInt, num_levels; init = big(0))
 
     if total > limit
         error(
