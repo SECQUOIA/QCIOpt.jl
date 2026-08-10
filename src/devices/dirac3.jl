@@ -111,13 +111,12 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     num_samples         = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
     relaxation_schedule = MOI.get(solver, MOI.RawOptimizerAttribute("relaxation_schedule"))
 
-    request = qci_build_poly_request(
-        solver,
-        device,
-        x;
-        file_name,
-        max_level = qci_max_level(device),
-    )
+    # Build (and validate) first: `qci_build_poly_request` is network-free, while
+    # `qci_max_level` reads the allocation over the network. An unusable domain
+    # must report itself as such, not as a missing-credentials error.
+    request = qci_build_poly_request(solver, device, x; file_name)
+
+    assert_level_budget(request.num_levels, qci_max_level(device))
 
     job_params = Dict{Symbol,Any}(
         :device_type         => "dirac-3",
@@ -163,16 +162,18 @@ end
 qci_max_level(::DIRAC_3) = qci_is_free_tier() ? 500 : 949
 
 @doc raw"""
-    qci_build_poly_request(solver::Optimizer{T}, device::DIRAC_3{T}, vars; file_name = nothing, max_level = nothing) where {T}
+    qci_build_poly_request(solver::Optimizer{T}, device::DIRAC_3{T}, vars; file_name = nothing) where {T}
 
 Build everything a DIRAC-3 submission needs from a loaded model, without
 touching the network: the shifted polynomial, the polynomial file body, and the
 per-variable level counts. This is the whole transformation half of
 [`qci_optimize!`](@ref), split out so it can be exercised offline.
 
-Applies the contract documented on [`variable_domains`](@ref). When `max_level`
-is given, the level budget is checked before the file body is built, so an
-oversized model fails before anything is written or uploaded.
+Applies the contract documented on [`variable_domains`](@ref), and so raises that
+function's domain errors. Being network-free is what lets an unusable model fail
+with its own error rather than with a credentials or connectivity error; the
+level budget is checked separately by [`assert_level_budget`](@ref), because the
+allocation limit itself has to be read from the provider.
 
 Returns a named tuple `(; poly, file, num_levels)`.
 """
@@ -181,12 +182,9 @@ function qci_build_poly_request(
     device::DIRAC_3{T},
     vars;
     file_name::Union{AbstractString,Nothing} = nothing,
-    max_level::Union{Integer,Nothing} = nothing,
 ) where {T}
     domains    = variable_domains(solver, device, vars)
     num_levels = get_levels(domains)
-
-    isnothing(max_level) || assert_level_budget(num_levels, max_level)
 
     poly = rescale_variables(device.poly, vars, T[li for (li, _) in domains])
     file = qci_data_file(xi -> var_idx(device.varmap, var_inv(device.varmap, xi)), poly; file_name)

@@ -300,14 +300,16 @@
             @test occursin("501 DIRAC-3 levels across 2 variables", sprint(showerror, err))
             @test occursin("500-level budget", sprint(showerror, err))
 
-            # The budget is enforced on the submission path, before the request
-            # body is built. The model below needs 3 + 4 = 7 levels.
+            # Checked against the level counts the submission path produces.
+            # The model below needs 3 + 4 = 7 levels.
             (; solver, device, vars) = load(bounded_model())
+            num_levels = request(solver, device, vars).num_levels
 
-            @test request(solver, device, vars; max_level = 7).num_levels == [3, 4]
+            @test num_levels == [3, 4]
+            @test QCIOpt.assert_level_budget(num_levels, 7) === nothing
 
             err = try
-                request(solver, device, vars; max_level = 6)
+                QCIOpt.assert_level_budget(num_levels, 6)
                 nothing
             catch err
                 err
@@ -315,6 +317,30 @@
 
             @test err isa ErrorException
             @test occursin("7 DIRAC-3 levels across 2 variables", sprint(showerror, err))
+        end
+    end
+
+    @testset "Domain errors do not require credentials" begin
+        # `qci_max_level` reads the allocation from the provider. If the solve
+        # path consults it before validating the model, an unusable domain is
+        # reported as a missing-token error and the real problem is hidden --
+        # and every domain error above becomes unreachable offline.
+        with_qci_token(nothing) do
+            model = bounded_model(; integer = false)
+
+            solver = QCIOpt.Optimizer()
+            MOI.set(solver, MOI.RawOptimizerAttribute("api_token"), "not-a-valid-token")
+            MOI.set(solver, MOI.Silent(), true)
+
+            err = try
+                MOI.optimize!(solver, model)
+                nothing
+            catch err
+                err
+            end
+
+            @test err isa ErrorException
+            @test occursin("samples integer-valued variables only", sprint(showerror, err))
         end
     end
 
