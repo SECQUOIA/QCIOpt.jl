@@ -160,7 +160,12 @@ function get_levels(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
 end
 
 @doc raw"""
-    readjust_poly_values(solver::Optimizer{T}, n::Integer, samples::Vector{Sample{T,T}}) where {T}
+    readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
+
+Map provider sample points back to the original variable domain (adding each
+variable's lower bound) and recompute objective values from the stored
+polynomial, restoring the original model's objective for `MAX_SENSE` models.
+Returns the samples ordered best-first for the given sense.
 """
 function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
