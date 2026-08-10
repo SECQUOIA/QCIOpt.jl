@@ -91,18 +91,3 @@ function MOI.set(solver::Optimizer{T}, ::QCIOpt.DeviceType, spec::AbstractString
 end
 
 MOI.supports(::Optimizer{T}, ::QCIOpt.DeviceType) where {T} = true
-
-# # Extra Attributes
-
-# # [ ] ObjectiveSense
-# function MOI.get(::Optimizer{T}, ::MOI.ObjectiveSense) where {T}
-#     return MOI.MIN_SENSE
-# end
-
-# function MOI.set(::Optimizer{T}, ::MOI.ObjectiveSense, value::MOI.OptimizationSense) where {T}
-#     @assert value === MOI.MIN_SENSE
-
-#     return nothing
-# end
-
-# MOI.supports(::Optimizer{T}, ::MOI.ObjectiveSense) where {T} = true

@@ -38,6 +38,43 @@ if QCIOpt.__auth__()
             end
         end
 
+        @testset "DIRAC-1 QUBO maximization" begin
+            let model = Model(QCIOpt.Optimizer)
+                table = Dict(
+                    [0, 0] => 1,
+                    [0, 1] => 2,
+                    [1, 0] => 2,
+                    [1, 1] => 1,
+                )
+
+                @variable(model, x[1:2], Bin)
+
+                @objective(model, Max, 1 + x[1] + x[2] - 2 * x[1] * x[2])
+
+                set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
+                set_attribute(model, MOI.RawOptimizerAttribute("num_samples"), 1)
+
+                optimize!(model)
+
+                @test result_count(model) >= 1
+
+                # Reported values are the original (maximization) objective at
+                # each sampled point, ordered best-first (descending).
+                values = [objective_value(model; result = i) for i = 1:result_count(model)]
+
+                @test issorted(values; rev = true)
+
+                for i = 1:result_count(model)
+                    let xi = round.(Int, value.(x; result = i))
+                        @test length(xi) == 2
+                        @test objective_value(model; result = i) ≈ table[xi]
+                    end
+
+                    @test MOI.get(model, QCIOpt.ResultMultiplicity(i)) >= 1
+                end
+            end
+        end
+
         @testset "DIRAC-1 QUBODrivers metadata" begin
             model = MOI.Utilities.Model{Float64}()
             x = MOI.add_variables(model, 2)
