@@ -138,10 +138,28 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     response = qci_process_job(job_body; api_token, verbose = !silent)
     solution = qci_parse_results(T, T, response)
 
-    # Store results
+    qci_store_results!(solver, device, model, x, solution)
+
+    return nothing
+end
+
+@doc raw"""
+    qci_store_results!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike, vars, solution::Solution{T,T}) where {T}
+
+Store a parsed provider solution on the solver, reading the model's
+`MOI.ObjectiveSense` to restore original objective values and best-first
+ordering. Network-free, so the sense handoff is testable offline.
+"""
+function qci_store_results!(
+    solver::Optimizer{T},
+    device::DIRAC_3{T},
+    model::MOI.ModelLike,
+    vars,
+    solution::Solution{T,T},
+) where {T}
     # TODO: Preserve job identifiers, timing, status, and provider diagnostics in metadata.
     solver.solution = Solution{T,T}(
-        readjust_poly_values(solver, device, x, solution.samples, MOI.get(model, MOI.ObjectiveSense())),
+        readjust_poly_values(solver, device, vars, solution.samples, MOI.get(model, MOI.ObjectiveSense())),
         solution.metadata,
     )
 

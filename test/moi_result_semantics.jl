@@ -6,6 +6,51 @@
 
     make_sample(point, value, reads) = QCIOpt.Sample{Float64,Float64}(point, value, reads)
 
+    # f(x) = 1 + x₁ + x₂ - 2x₁x₂, used by every objective testset below.
+    objective(x1, x2) = 1.0 + x1 + x2 - 2.0 * x1 * x2
+
+    function objective_function(x)
+        return MOI.ScalarQuadraticFunction(
+            [MOI.ScalarQuadraticTerm(-2.0, x[1], x[2])],
+            [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
+            1.0,
+        )
+    end
+
+    # Binary model for the DIRAC-1 path.
+    function qubo_model(sense::MOI.OptimizationSense)
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+
+        MOI.add_constraint(model, x[1], MOI.ZeroOne())
+        MOI.add_constraint(model, x[2], MOI.ZeroOne())
+
+        f = objective_function(x)
+
+        MOI.set(model, MOI.ObjectiveSense(), sense)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        return model
+    end
+
+    # Integer model over [-1, 1]² for the DIRAC-3 path.
+    function poly_model(sense::MOI.OptimizationSense)
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+
+        for xi in x
+            MOI.add_constraint(model, xi, MOI.Integer())
+            MOI.add_constraint(model, xi, MOI.Interval(-1.0, 1.0))
+        end
+
+        f = objective_function(x)
+
+        MOI.set(model, MOI.ObjectiveSense(), sense)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        return model
+    end
+
     @testset "Provider status to MOI status mapping" begin
         # (provider status, has samples, expected termination status)
         status_table = [
@@ -95,25 +140,6 @@
     # Objective table for f(x) = 1 + x₁ + x₂ - 2x₁x₂ over binary points:
     # f(0,0) = 1, f(1,0) = 2, f(0,1) = 2, f(1,1) = 1.
     @testset "DIRAC-1 objective semantics" begin
-        function qubo_model(sense::MOI.OptimizationSense)
-            model = MOI.Utilities.Model{Float64}()
-            x = MOI.add_variables(model, 2)
-
-            MOI.add_constraint(model, x[1], MOI.ZeroOne())
-            MOI.add_constraint(model, x[2], MOI.ZeroOne())
-
-            f = MOI.ScalarQuadraticFunction(
-                [MOI.ScalarQuadraticTerm(-2.0, x[1], x[2])],
-                [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
-                1.0,
-            )
-
-            MOI.set(model, MOI.ObjectiveSense(), sense)
-            MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
-
-            return model
-        end
-
         @testset "Minimization" begin
             model = qubo_model(MOI.MIN_SENSE)
             solver = QCIOpt.Optimizer()
@@ -175,29 +201,6 @@
     # Objective table for f(x) = 1 + x₁ + x₂ - 2x₁x₂ over x ∈ {-1, 0, 1}²:
     # f(-1,-1) = -3, f(0,1) = 2, f(1,1) = 1 (matches the live DIRAC-3 IP test).
     @testset "DIRAC-3 objective semantics" begin
-        function poly_model(sense::MOI.OptimizationSense)
-            model = MOI.Utilities.Model{Float64}()
-            x = MOI.add_variables(model, 2)
-
-            for xi in x
-                MOI.add_constraint(model, xi, MOI.Integer())
-                MOI.add_constraint(model, xi, MOI.Interval(-1.0, 1.0))
-            end
-
-            f = MOI.ScalarQuadraticFunction(
-                [MOI.ScalarQuadraticTerm(-2.0, x[1], x[2])],
-                [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
-                1.0,
-            )
-
-            MOI.set(model, MOI.ObjectiveSense(), sense)
-            MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
-
-            return model
-        end
-
-        objective(x1, x2) = 1.0 + x1 + x2 - 2.0 * x1 * x2
-
         @testset "Load stores the minimization form" begin
             for (sense, factor) in [(MOI.MIN_SENSE, 1.0), (MOI.MAX_SENSE, -1.0)]
                 model = poly_model(sense)
@@ -254,6 +257,96 @@
                 else
                     @test adjusted[1].point == [-1.0, -1.0]
                     @test adjusted[3].point == [0.0, 1.0]
+                end
+            end
+        end
+    end
+
+    # The testsets above pass the sense in from the test, which leaves the one
+    # argument that actually threads the model's sense into result adjustment
+    # uncovered: the `MOI.ObjectiveSense()` lookup inside `qci_optimize!`.
+    # These call `qci_store_results!` with a model instead, so replacing that
+    # lookup with a literal sense turns them red.
+    @testset "Result-storage sense handoff" begin
+        @testset "DIRAC-1" begin
+            # Provider points, deliberately not in best-first order.
+            provider_samples() = [
+                make_sample([1.0, 1.0], 0.0, 3),
+                make_sample([1.0, 0.0], 0.0, 1),
+                make_sample([0.0, 0.0], 0.0, 2),
+            ]
+
+            # (sense, values best-first, best point)
+            expectations = [
+                # f(0,0) = 1 (2 reads) and f(1,1) = 1 (3 reads) tie; higher
+                # multiplicity wins.
+                (MOI.MIN_SENSE, [1.0, 1.0, 2.0], [1.0, 1.0]),
+                (MOI.MAX_SENSE, [2.0, 1.0, 1.0], [1.0, 0.0]),
+            ]
+
+            for (sense, expected_values, best_point) in expectations
+                @testset "$sense" begin
+                    model = qubo_model(sense)
+                    solver = QCIOpt.Optimizer()
+                    MOI.set(solver, QCIOpt.DeviceType(), "dirac-1")
+
+                    device = getfield(solver, :device)
+
+                    QCIOpt.qci_load!(solver, device, model; api_token = "dummy-token")
+
+                    solution = make_solution(provider_samples(), "COMPLETED")
+
+                    @test QCIOpt.qci_store_results!(solver, device, model, solution) === nothing
+
+                    stored = solver.solution
+
+                    @test [s.value for s in stored.samples] ≈ expected_values
+                    @test stored.samples[1].point == best_point
+                    @test stored.metadata["status"] == "COMPLETED"
+
+                    # The same values reach the public MOI surface.
+                    @test MOI.get(solver, MOI.ResultCount()) == 3
+                    @test MOI.get(solver, MOI.ObjectiveValue(1)) ≈ first(expected_values)
+                    @test MOI.get(solver, MOI.TerminationStatus()) === MOI.LOCALLY_SOLVED
+                end
+            end
+        end
+
+        @testset "DIRAC-3" begin
+            # Provider points are shifted by the lower bound (-1): y maps to
+            # x = y - 1, so f(x) is -3, 2, and 1 respectively.
+            provider_samples() = [
+                make_sample([1.0, 2.0], 0.0, 2), # x = (0, 1),   f = 2
+                make_sample([0.0, 0.0], 0.0, 1), # x = (-1, -1), f = -3
+                make_sample([2.0, 2.0], 0.0, 3), # x = (1, 1),   f = 1
+            ]
+
+            expectations = [
+                (MOI.MIN_SENSE, [-3.0, 1.0, 2.0], [-1.0, -1.0]),
+                (MOI.MAX_SENSE, [2.0, 1.0, -3.0], [0.0, 1.0]),
+            ]
+
+            for (sense, expected_values, best_point) in expectations
+                @testset "$sense" begin
+                    model = poly_model(sense)
+                    solver = QCIOpt.Optimizer()
+
+                    device = getfield(solver, :device)
+                    vars = QCIOpt.qci_load!(solver, device, model)
+
+                    solution = make_solution(provider_samples(), "COMPLETED")
+
+                    @test QCIOpt.qci_store_results!(solver, device, model, vars, solution) === nothing
+
+                    stored = solver.solution
+
+                    @test [s.value for s in stored.samples] ≈ expected_values
+                    @test stored.samples[1].point == best_point
+                    @test stored.metadata["status"] == "COMPLETED"
+
+                    @test MOI.get(solver, MOI.ResultCount()) == 3
+                    @test MOI.get(solver, MOI.ObjectiveValue(1)) ≈ first(expected_values)
+                    @test MOI.get(solver, MOI.TerminationStatus()) === MOI.LOCALLY_SOLVED
                 end
             end
         end
