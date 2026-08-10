@@ -72,10 +72,16 @@ function effective_time(response, metrics; device_type::AbstractString = DEFAULT
     return 0.0
 end
 
+# Keep this mapping consistent with `QCIOpt.QCI_TERMINATION_STATUS` in the MOI
+# layer: non-terminal provider states map to `MOI.OTHER_LIMIT`, unknown status
+# strings map to `MOI.OTHER_ERROR`.
 function termination_status(status)
     status == "COMPLETED" && return MOI.LOCALLY_SOLVED
     status == "CANCELLED" && return MOI.INTERRUPTED
     status == "ERRORED" && return MOI.OTHER_ERROR
+    status == "QUEUED" && return MOI.OTHER_LIMIT
+    status == "RUNNING" && return MOI.OTHER_LIMIT
+    status == "SUBMITTED" && return MOI.OTHER_LIMIT
 
     return MOI.OTHER_ERROR
 end

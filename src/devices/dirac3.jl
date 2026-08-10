@@ -59,11 +59,17 @@ qci_default_attributes(::Type{DIRAC_3{T}}) where {T} = Dict{String,Any}(
 qci_supports_attribute(::DIRAC_3, attr::AbstractString) = attr ∈ DIRAC_3_ATTRIBUTES
 
 @doc raw"""
-    qci_optimize!(solver::Optimizer{T}, model::MOI.ModelLike, device::DIRAC_3; api_token::AbstractString) where {T}
+    qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike) where {T}
 
-    
+Load the model into the device without touching the network: build the
+variable map, retrieve variable bounds, copy model attributes, and parse the
+objective polynomial. The device natively minimizes, so for `MAX_SENSE` models
+the negated polynomial is stored and submitted; original objective values are
+restored in [`readjust_poly_values`](@ref).
+
+Returns the vector of `DynamicPolynomials` variables in model variable order.
 """
-function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
+function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike) where {T}
     n = MOI.get(model, MOI.NumberOfVariables())
 
     DP.@polyvar(x[1:n])
@@ -75,7 +81,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     # TODO: Adjust variable bounds
     # (see `DynamicPolynomials.subs` @ https://juliaalgebra.github.io/MultivariatePolynomials.jl/stable/substitution/)
     # This has to return:
-    # 1. A new, modified polynomial such that each original variable xᵢ ∈ [l, u] becomes xᵢ ∈ [0, u - l] under 
+    # 1. A new, modified polynomial such that each original variable xᵢ ∈ [l, u] becomes xᵢ ∈ [0, u - l] under
     #    the substitution rule xᵢ ↦ (xᵢ - l) for the integer case and xᵢ ↦ (xᵢ - l) / (u - l) for the real case
     #    where xᵢ ∈ [0, 1] (to be rescaled later according to variable precision)
     # 2. The new variable bounds, to be passed as qci_build_job_body(...; ..., num_levels = variable_bounds::Vector{Int})
@@ -83,7 +89,24 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
 
     copy_model_attributes!(solver, model)
 
-    device.poly = parse_polynomial(model, device.varmap)
+    device.poly = let p = parse_polynomial(model, device.varmap)
+        if MOI.get(model, MOI.ObjectiveSense()) === MOI.MAX_SENSE
+            -p
+        else
+            p
+        end
+    end
+
+    return x
+end
+
+@doc raw"""
+    qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
+
+Submit the loaded model to the DIRAC-3 device and store the parsed results.
+"""
+function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
+    x = qci_load!(solver, device, model)
 
     poly = rescale_variables(
         device.poly,
@@ -156,14 +179,17 @@ function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, sa
             x[i]     = xi
         end
 
+        # `device.poly` stores the minimization form, which is the negated
+        # objective for MAX_SENSE models; the sign flip below restores the
+        # original model's objective value at the sampled point.
         value = if sense === MOI.MAX_SENSE
             -device.poly(x => point)
-        else # MOI.MIN_SENSE || MOI.FEASIBILITY_SENSE
+        else # MOI.MIN_SENSE
             device.poly(x => point)
         end
 
         push!(adjusted_samples, Sample{T,T}(point, value, sample.reads))
     end
 
-    return sort!(adjusted_samples; by = s -> (s.value, -s.reads))
+    return sort_samples!(adjusted_samples, sense)
 end

@@ -85,6 +85,16 @@ function Base.empty!(solution::Solution{U,T}) where {U,T}
     return solution
 end
 
+# Order samples best-first for the given sense: ascending objective value when
+# minimizing, descending when maximizing; ties break on higher multiplicity.
+function sort_samples!(samples::Vector{Sample{U,T}}, sense::MOI.OptimizationSense) where {U,T}
+    if sense === MOI.MAX_SENSE
+        return sort!(samples; by = s -> (-s.value, -s.reads))
+    else
+        return sort!(samples; by = s -> (s.value, -s.reads))
+    end
+end
+
 mutable struct Optimizer{T} <: MOI.AbstractOptimizer
     # Device
     device::Any
@@ -154,7 +164,17 @@ function MOI.optimize!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}
 
     # device = QCIOpt.qci_device(T, MOI.get(solver, QCIOpt.DeviceType()))::QCI_DEVICE
 
-    @assert MOI.get(model, MOI.ObjectiveSense()) === MOI.MIN_SENSE "$(solver.device) only supports minimizing"
+    # The QCI devices natively minimize. Maximization is supported by negating
+    # the objective at submission and restoring original objective values when
+    # results are parsed. FEASIBILITY_SENSE has no objective to sample against.
+    let sense = MOI.get(model, MOI.ObjectiveSense())
+        if sense === MOI.FEASIBILITY_SENSE
+            error(
+                "$(MOI.get(solver, MOI.SolverName())) does not support FEASIBILITY_SENSE models. " *
+                "Set a MIN_SENSE or MAX_SENSE objective instead.",
+            )
+        end
+    end
 
     QCIOpt.qci_optimize!(solver, solver.device, model; api_token)
 

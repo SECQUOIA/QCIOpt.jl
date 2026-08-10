@@ -135,11 +135,20 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.ModelLik
     load_attributes!(solver, device, model)
 
     # load matrix
+    # The device natively minimizes, so for MAX_SENSE models the negated
+    # objective (matrix and offset) is stored and submitted; original objective
+    # values are restored in `readjust_qubo_values`.
     device.matrix, device.offset = let
         F = MOI.get(model, MOI.ObjectiveFunctionType())
         f = MOI.get(model, MOI.ObjectiveFunction{F}())
 
-        parse_qubo_matrix(f, device.varmap)
+        Q, c = parse_qubo_matrix(f, device.varmap)
+
+        if MOI.get(model, MOI.ObjectiveSense()) === MOI.MAX_SENSE
+            (-Q, -c)
+        else
+            (Q, c)
+        end
     end
 
     return nothing
@@ -186,6 +195,9 @@ function readjust_qubo_values(device::DIRAC_1{T}, samples::Vector{Sample{T,T}}, 
 
     for sample in samples
         point = sample.point
+        # `device.matrix`/`device.offset` store the minimization form, which is
+        # the negated objective for MAX_SENSE models; the sign flip below
+        # restores the original model's objective value at the sampled point.
         value = (point' * device.matrix * point + device.offset)
 
         if sense === MOI.MAX_SENSE
@@ -195,7 +207,7 @@ function readjust_qubo_values(device::DIRAC_1{T}, samples::Vector{Sample{T,T}}, 
         push!(adjusted_samples, Sample{T,T}(point, value, sample.reads))
     end
 
-    return sort!(adjusted_samples; by = s -> (s.value, -s.reads))
+    return sort_samples!(adjusted_samples, sense)
 end
 
 function qci_build_job_body(

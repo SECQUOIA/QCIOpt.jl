@@ -184,12 +184,14 @@
         @test solver.upper[x[2]] == 1.0
     end
 
-    @testset "Unsupported maximization message" begin
+    @testset "Unsupported feasibility-sense message" begin
+        # Maximization is now supported through objective negation (see
+        # test/moi_result_semantics.jl); FEASIBILITY_SENSE remains rejected
+        # before any network access.
         model = MOI.Utilities.Model{Float64}()
         x = MOI.add_variable(model)
 
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-        MOI.set(model, MOI.ObjectiveFunction{typeof(x)}(), x)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.FEASIBILITY_SENSE)
 
         solver = QCIOpt.Optimizer()
         MOI.set(solver, MOI.RawOptimizerAttribute("api_token"), "dummy-token")
@@ -201,8 +203,8 @@
             err
         end
 
-        @test err isa AssertionError
-        @test occursin("only supports minimizing", sprint(showerror, err))
+        @test err isa ErrorException
+        @test occursin("does not support FEASIBILITY_SENSE", sprint(showerror, err))
     end
 
     @testset "JSON metadata conversion returns plain Julia containers" begin
