@@ -111,6 +111,38 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLik
 end
 
 @doc raw"""
+    qci_build_poly_job_body(solver::Optimizer, device::DIRAC_3, file_id, num_levels; api_token, silent)
+
+Build a DIRAC-3 integer-polynomial job body from the validated raw optimizer
+attributes stored on `solver`. This is the network-free caller-to-client
+boundary used by `qci_optimize!`.
+"""
+function qci_build_poly_job_body(
+    solver::Optimizer{T},
+    ::DIRAC_3{T},
+    file_id::AbstractString,
+    num_levels::AbstractVector{<:Integer};
+    api_token::AbstractString = qci_default_token(),
+    silent::Bool = false,
+) where {T}
+    return qci_build_poly_job_body(
+        file_id;
+        api_token,
+        silent,
+        device_type = "dirac-3",
+        job_type = "sample-hamiltonian-integer",
+        num_levels,
+        num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples")),
+        relaxation_schedule = MOI.get(
+            solver,
+            MOI.RawOptimizerAttribute("relaxation_schedule"),
+        ),
+        job_name = MOI.get(solver, MOI.RawOptimizerAttribute("job_name")),
+        job_tags = MOI.get(solver, MOI.RawOptimizerAttribute("job_tags")),
+    )
+end
+
+@doc raw"""
     qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
 
 Submit the loaded model to the DIRAC-3 device and store the parsed results.
@@ -120,9 +152,6 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
 
     silent              = MOI.get(solver, MOI.Silent())
     file_name           = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
-    num_samples         = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
-    relaxation_schedule = MOI.get(solver, MOI.RawOptimizerAttribute("relaxation_schedule"))
-
     # Build (and validate) first: `qci_build_poly_request` is network-free, while
     # `qci_max_level` reads the allocation over the network. An unusable domain
     # must report itself as such, not as a missing-credentials error.
@@ -130,16 +159,15 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
 
     assert_level_budget(request.num_levels, qci_max_level(device; api_token, silent))
 
-    job_params = Dict{Symbol,Any}(
-        :device_type         => "dirac-3",
-        :job_type            => "sample-hamiltonian-integer",
-        :num_levels          => request.num_levels,
-        :num_samples         => num_samples,
-        :relaxation_schedule => relaxation_schedule,
-    )
-
     file_id  = qci_upload_file(request.file; api_token, silent)
-    job_body = qci_build_poly_job_body(file_id; api_token, silent, job_params...) # TODO: Pass Parameters for this
+    job_body = qci_build_poly_job_body(
+        solver,
+        device,
+        file_id,
+        request.num_levels;
+        api_token,
+        silent,
+    )
     response = qci_process_job(job_body; api_token, silent)
     solution = qci_parse_results(T, T, response)
 

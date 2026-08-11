@@ -7,6 +7,11 @@ function qci_upload_file(file; url = QCI_URL, api_token = qci_default_token(), s
     return response["file_id"]
 end
 
+@doc raw"""
+    qci_build_poly_job_body(file_id; device_type, job_type, num_levels, kwargs...)
+
+Build a QCI integer-polynomial job body from explicit client and job arguments.
+"""
 function qci_build_poly_job_body(
     file_id::AbstractString;
     # Client Arguments
@@ -17,10 +22,11 @@ function qci_build_poly_job_body(
     device_type::AbstractString,
     job_type::AbstractString,
     num_samples::Integer         = 100,
-    num_levels::AbstractVector{U}, # This needs to be adjusted per-variable
+    num_levels::AbstractVector{U},
     relaxation_schedule::Integer = 1,
+    job_name::AbstractString = "",
+    job_tags::AbstractVector{<:AbstractString} = String[],
 ) where {U<:Integer}
-    job_tags   = String[]
     job_params = Dict{String,Any}(
         "device_type"         => device_type,
         "num_samples"         => num_samples,
@@ -31,8 +37,8 @@ function qci_build_poly_job_body(
     return qci_client(; url, api_token, silent) do client
         client.build_job_body(;
             job_type   = job_type,
-            job_name   = "",
-            job_tags   = py_object(job_tags),
+            job_name   = String(job_name),
+            job_tags   = py_object(String[String(tag) for tag in job_tags]),
             job_params = py_object(job_params),
             polynomial_file_id = file_id,
         ) |> jl_object

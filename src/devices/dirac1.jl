@@ -194,21 +194,12 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
 
     @assert num_vars <= qci_max_level(device)
     
-    silent      = MOI.get(solver, MOI.Silent())
-    file_name   = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
-    num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples"))
-    relaxation_schedule = MOI.get(solver, MOI.RawOptimizerAttribute("relaxation_schedule"))
-
-    job_params = Dict{Symbol,Any}(
-        :device_type         => "dirac-1",
-        :job_type            => "sample-qubo",
-        :num_samples         => num_samples,
-        :relaxation_schedule => relaxation_schedule,
-    )
+    silent    = MOI.get(solver, MOI.Silent())
+    file_name = MOI.get(solver, MOI.RawOptimizerAttribute("file_name"))
 
     file     = qci_data_file(device.matrix; file_name)
     file_id  = qci_upload_file(file; api_token, silent)
-    job_body = qci_build_job_body(device; file_id, api_token, silent, job_params...) # TODO: Pass Parameters for this
+    job_body = qci_build_job_body(solver, device; file_id, api_token, silent)
     response = qci_process_job(job_body; api_token, silent)
     solution = qci_parse_results(T, T, response)
 
@@ -260,6 +251,35 @@ function readjust_qubo_values(device::DIRAC_1{T}, samples::Vector{Sample{T,T}}, 
     return sort_samples!(adjusted_samples, sense)
 end
 
+@doc raw"""
+    qci_build_job_body(solver::Optimizer, device::DIRAC_1; file_id, api_token, silent)
+
+Build a DIRAC-1 job body from the validated raw optimizer attributes stored on
+`solver`. This is the network-free caller-to-client boundary used by
+`qci_optimize!`.
+"""
+function qci_build_job_body(
+    solver::Optimizer{T},
+    device::DIRAC_1{T};
+    file_id::AbstractString,
+    api_token::AbstractString = qci_default_token(),
+    silent::Bool = false,
+) where {T}
+    return qci_build_job_body(
+        device;
+        file_id,
+        api_token,
+        silent,
+        num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples")),
+        relaxation_schedule = MOI.get(
+            solver,
+            MOI.RawOptimizerAttribute("relaxation_schedule"),
+        ),
+        job_name = MOI.get(solver, MOI.RawOptimizerAttribute("job_name")),
+        job_tags = MOI.get(solver, MOI.RawOptimizerAttribute("job_tags")),
+    )
+end
+
 function qci_build_job_body(
     ::DIRAC_1{T};
     file_id::AbstractString,
@@ -272,8 +292,9 @@ function qci_build_job_body(
     job_type::AbstractString    = "sample-qubo",
     num_samples::Integer         = 100,
     relaxation_schedule::Integer = 1,
+    job_name::AbstractString = "",
+    job_tags::AbstractVector{<:AbstractString} = String[],
 ) where {T}
-    job_tags   = String[]
     job_params = Dict{String,Any}(
         "device_type"         => device_type,
         "num_samples"         => num_samples,
@@ -283,8 +304,8 @@ function qci_build_job_body(
     return qci_client(; url, api_token, silent) do client
         return client.build_job_body(;
             job_type     = job_type,
-            job_name     = "", # TODO: Add parameter to pass job_name
-            job_tags     = py_object(job_tags),
+            job_name     = String(job_name),
+            job_tags     = py_object(String[String(tag) for tag in job_tags]),
             job_params   = py_object(job_params),
             qubo_file_id = file_id,
         ) |> jl_object

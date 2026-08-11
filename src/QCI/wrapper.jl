@@ -8,6 +8,8 @@ const QCI_GENERIC_ATTRIBUTES = Set{String}([
     "device_type",
     "file_name",
     "api_token",
+    "job_name",
+    "job_tags",
     "silent",
 ])
 
@@ -27,6 +29,8 @@ qci_default_attributes(::Type{D}) where {D<:QCI_DEVICE}           = qci_default_
 qci_default_attributes() = Dict{String,Any}(
     "api_token" => qci_default_token(),
     "file_name" => nothing,
+    "job_name"  => "",
+    "job_tags"  => String[],
     "silent"    => false,
 )
 

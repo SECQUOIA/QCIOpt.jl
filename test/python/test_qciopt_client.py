@@ -188,3 +188,26 @@ def test_job_body_rejects_unsupported_file_keywords() -> None:
             qubo_file_id="qubo-file",
             graph_file_id="graph-file",
         )
+
+
+def test_qubo_job_body_preserves_supported_job_configuration() -> None:
+    client = client_with_session(FakeSession({}))
+
+    body = client.build_job_body(
+        job_type="sample-qubo",
+        job_name="issue-39-contract",
+        job_tags=["offline", "boundary-test"],
+        job_params={
+            "device_type": "dirac-1",
+            "num_samples": 7,
+            "relaxation_schedule": 4,
+        },
+        qubo_file_id="qubo-file",
+    )
+
+    submission = body["job_submission"]
+    assert submission["job_name"] == "issue-39-contract"
+    assert submission["job_tags"] == ["offline", "boundary-test"]
+    assert submission["device_config"] == {
+        "dirac-1": {"num_samples": 7, "relaxation_schedule": 4}
+    }

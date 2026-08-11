@@ -128,6 +128,8 @@ using Suppressor: @capture_out
                 MOI.RawOptimizerAttribute("api_token"),
                 MOI.RawOptimizerAttribute("device_type"),
                 MOI.RawOptimizerAttribute("file_name"),
+                MOI.RawOptimizerAttribute("job_name"),
+                MOI.RawOptimizerAttribute("job_tags"),
                 MOI.RawOptimizerAttribute("num_samples"),
                 MOI.RawOptimizerAttribute("relaxation_schedule"),
                 MOI.RawOptimizerAttribute("silent"),
@@ -135,7 +137,7 @@ using Suppressor: @capture_out
             unsupported = [
                 MOI.TimeLimitSec(),
                 MOI.NumberOfThreads(),
-                MOI.RawOptimizerAttribute("job_name"),
+                MOI.RawOptimizerAttribute("arbitrary_provider_option"),
             ]
 
             @test all(attr -> MOI.supports(optimizer, attr), supported)
