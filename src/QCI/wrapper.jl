@@ -33,8 +33,12 @@ qci_default_attributes() = Dict{String,Any}(
 @doc raw"""
     qci_is_free_tier
 """
-function qci_is_free_tier(; url::AbstractString = QCI_URL, api_token::Maybe{AbstractString} = qci_default_token())
-    alloc = qci_get_allocations(; url, api_token)
+function qci_is_free_tier(;
+    url::AbstractString = QCI_URL,
+    api_token::Maybe{AbstractString} = qci_default_token(),
+    silent::Bool = false,
+)
+    alloc = qci_get_allocations(; url, api_token, silent)
 
     return !(alloc["dirac"]["paid"])
 end

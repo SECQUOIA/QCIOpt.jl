@@ -61,11 +61,19 @@ qci_default_attributes(::Type{DIRAC_1{T}}) where {T} = Dict{String,Any}(
 
 qci_supports_attribute(::DIRAC_1, attr::AbstractString) = (attr ∈ DIRAC_1_ATTRIBUTES)
 
-function assert_is_qubo_model(model::MOI.ModelLike)
-    is_qubo = true
+qci_supports_objective(::DIRAC_1{T}, ::Type{SQF{T}}) where {T} = true
 
-    let F = MOI.get(model, MOI.ObjectiveFunctionType())
-        is_qubo &= (F <: SQF || F <: SAF || F <: VI)
+qci_supports_constraint(::DIRAC_1, ::Type{VI}, ::Type{MOI.ZeroOne}) = true
+
+function assert_is_qubo_model(model::MOI.ModelLike)
+    F = MOI.get(model, MOI.ObjectiveFunctionType())
+    if !(F <: SQF)
+        throw(
+            MOI.UnsupportedAttribute(
+                MOI.ObjectiveFunction{F}(),
+                "DIRAC-1 requires a ScalarQuadraticFunction objective.",
+            ),
+        )
     end
 
     var_set = Set{VI}(MOI.get(model, MOI.ListOfVariableIndices()))
@@ -77,9 +85,7 @@ function assert_is_qubo_model(model::MOI.ModelLike)
         push!(bin_set, vi)
     end
 
-    is_qubo &= (var_set ⊆ bin_set)
-
-    is_qubo || error("Dirac 1 only supports QUBO models.")
+    var_set ⊆ bin_set || error("DIRAC-1 requires every variable to be binary.")
 
     return nothing
 end
@@ -174,9 +180,9 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.Mode
     )
 
     file     = qci_data_file(device.matrix; file_name)
-    file_id  = qci_upload_file(file; api_token)
-    job_body = qci_build_job_body(device; file_id, api_token, job_params...) # TODO: Pass Parameters for this
-    response = qci_process_job(job_body; api_token, verbose = !silent)
+    file_id  = qci_upload_file(file; api_token, silent)
+    job_body = qci_build_job_body(device; file_id, api_token, silent, job_params...) # TODO: Pass Parameters for this
+    response = qci_process_job(job_body; api_token, silent)
     solution = qci_parse_results(T, T, response)
 
     qci_store_results!(solver, device, model, solution)

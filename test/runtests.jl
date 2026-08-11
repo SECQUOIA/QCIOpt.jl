@@ -15,6 +15,7 @@ import MathOptInterface as MOI
     include("review_regressions.jl")
     include("moi_result_semantics.jl")
     include("dirac3_bounds.jl")
+    include("moi_capabilities.jl")
 
     if lowercase(get(ENV, "QCI_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")
         include("live_qci.jl")

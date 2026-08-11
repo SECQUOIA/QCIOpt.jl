@@ -53,8 +53,21 @@ function qci_build_job_body(::Val{device_type}, ::Val{job_type}; kwargs...) wher
     return nothing
 end
 
-function qci_process_job(job_body; url = QCI_URL, api_token = qci_default_token(), verbose::Bool = true)
-    return qci_client(; url, api_token) do client
+@doc raw"""
+    qci_process_job(job_body; url = QCI_URL, api_token = qci_default_token(), silent = false, verbose = !silent)
+
+Submit and process a QCI job. When `silent` is true, provider console output is
+captured and not displayed; the same setting disables the client's progress
+messages by default.
+"""
+function qci_process_job(
+    job_body;
+    url = QCI_URL,
+    api_token = qci_default_token(),
+    silent::Bool = false,
+    verbose::Bool = !silent,
+)
+    return qci_client(; url, api_token, silent) do client
         client.process_job(;
             job_body = py_object(job_body),
             verbose,

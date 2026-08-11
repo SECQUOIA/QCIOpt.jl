@@ -136,7 +136,7 @@ function default_backend_runner(
         num_samples,
         relaxation_schedule,
     )
-    response = QCIOpt.qci_process_job(job_body; api_token, verbose = !silent)
+    response = QCIOpt.qci_process_job(job_body; api_token, silent)
     job_id = _get_path(response, ("job_info", "job_id"))
 
     metrics = if job_id isa AbstractString

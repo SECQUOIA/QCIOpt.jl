@@ -58,6 +58,18 @@ qci_default_attributes(::Type{DIRAC_3{T}}) where {T} = Dict{String,Any}(
 
 qci_supports_attribute(::DIRAC_3, attr::AbstractString) = attr ∈ DIRAC_3_ATTRIBUTES
 
+qci_supports_objective(::DIRAC_3{T}, ::Type{VI}) where {T} = true
+qci_supports_objective(::DIRAC_3{T}, ::Type{SAF{T}}) where {T} = true
+qci_supports_objective(::DIRAC_3{T}, ::Type{SQF{T}}) where {T} = true
+
+function qci_supports_constraint(
+    ::DIRAC_3{T},
+    ::Type{VI},
+    ::Type{S},
+) where {T,S<:Union{LT{T},EQ{T},GT{T},MOI.Interval{T},MOI.ZeroOne,MOI.Integer}}
+    return true
+end
+
 @doc raw"""
     qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike) where {T}
 
@@ -116,7 +128,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     # must report itself as such, not as a missing-credentials error.
     request = qci_build_poly_request(solver, device, x; file_name)
 
-    assert_level_budget(request.num_levels, qci_max_level(device))
+    assert_level_budget(request.num_levels, qci_max_level(device; api_token, silent))
 
     job_params = Dict{Symbol,Any}(
         :device_type         => "dirac-3",
@@ -126,9 +138,9 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
         :relaxation_schedule => relaxation_schedule,
     )
 
-    file_id  = qci_upload_file(request.file; api_token)
-    job_body = qci_build_poly_job_body(file_id; api_token, job_params...) # TODO: Pass Parameters for this
-    response = qci_process_job(job_body; api_token, verbose = !silent)
+    file_id  = qci_upload_file(request.file; api_token, silent)
+    job_body = qci_build_poly_job_body(file_id; api_token, silent, job_params...) # TODO: Pass Parameters for this
+    response = qci_process_job(job_body; api_token, silent)
     solution = qci_parse_results(T, T, response)
 
     qci_store_results!(solver, device, model, x, solution)
@@ -159,7 +171,14 @@ function qci_store_results!(
     return nothing
 end
 
-qci_max_level(::DIRAC_3) = qci_is_free_tier() ? 500 : 949
+function qci_max_level(
+    ::DIRAC_3;
+    url::AbstractString = QCI_URL,
+    api_token::Maybe{AbstractString} = qci_default_token(),
+    silent::Bool = false,
+)
+    return qci_is_free_tier(; url, api_token, silent) ? 500 : 949
+end
 
 @doc raw"""
     qci_build_poly_request(solver::Optimizer{T}, device::DIRAC_3{T}, vars; file_name = nothing) where {T}

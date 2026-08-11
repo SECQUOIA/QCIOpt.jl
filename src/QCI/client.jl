@@ -19,7 +19,14 @@ function qci_client_wrapper(
         local result # https://github.com/JuliaIO/Suppressor.jl?tab=readme-ov-file#variable-scope
 
         output[] = @capture_out begin
-            result = callback(client)
+            try
+                result = callback(client)
+            finally
+                # Python buffers stdout when Suppressor redirects the file
+                # descriptor. Flush before the capture ends so output cannot
+                # leak after a silent provider call returns.
+                PythonCall.pyimport("sys").stdout.flush()
+            end
         end
 
         silent || print(output[])

@@ -28,8 +28,9 @@ function MOI.get(::Optimizer{T}, ::MOI.RawSolver) where {T}
     return nothing
 end
 
-# [ ] Silent	            Yes	Yes	Yes     - check on QCI on how to suppress output, return that it's not supported if not; 
-# TODO: use redirect_stdout to suppress output? 
+# Provider calls receive the typed silent setting and use the scoped capture in
+# `qci_client_wrapper`, so client output is suppressed without redirecting
+# unrelated output around the whole solve.
 function MOI.get(solver::Optimizer{T}, ::MOI.Silent) where {T}
     return solver.attributes["silent"]
 end
