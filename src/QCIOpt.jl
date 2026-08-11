@@ -3,7 +3,6 @@ module QCIOpt
 using LinearAlgebra
 using JSON
 using Dates
-using Suppressor
 
 import MathOptInterface as MOI
 import DynamicPolynomials as DP

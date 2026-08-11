@@ -1,3 +1,5 @@
+using Suppressor: @capture_out
+
 @testset "MOI capability and silent-output contract" begin
     @testset "Device-specific objective support" begin
         objective_rows = [
@@ -223,7 +225,7 @@
                         "offline-token",
                     )
 
-                    displayed = QCIOpt.Suppressor.@capture_out begin
+                    displayed = @capture_out begin
                         MOI.optimize!(optimizer, model)
                     end
 
@@ -251,7 +253,7 @@
             )
             for silent in (false, true)
                 failure = Ref{Any}(nothing)
-                displayed = QCIOpt.Suppressor.@capture_out begin
+                displayed = @capture_out begin
                     try
                         QCIOpt.qci_upload_file(
                             Dict{String,Any}();
