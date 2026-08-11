@@ -20,6 +20,11 @@ function MOI.get(::Optimizer{T}, ::MOI.SolverVersion) where {T}
     return pkgversion(QCIOpt)
 end
 
+# MIN_SENSE and MAX_SENSE are accepted; FEASIBILITY_SENSE is rejected with an
+# actionable error at optimize time because MOI capability queries cannot
+# distinguish individual ObjectiveSense values.
+MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
+
 ### Check below for the list of attributes that are supported by the QCI Optimizer and create functions - YP 
 
 # [x] RawSolver	            Yes	No	No   - maybe there is none, should return nothing if so (or the optimizer itself/solver variable)
@@ -28,8 +33,9 @@ function MOI.get(::Optimizer{T}, ::MOI.RawSolver) where {T}
     return nothing
 end
 
-# [ ] Silent	            Yes	Yes	Yes     - check on QCI on how to suppress output, return that it's not supported if not; 
-# TODO: use redirect_stdout to suppress output? 
+# Provider calls receive the typed silent setting and use the scoped capture in
+# `qci_client_wrapper`, so client output is suppressed without redirecting
+# unrelated output around the whole solve.
 function MOI.get(solver::Optimizer{T}, ::MOI.Silent) where {T}
     return solver.attributes["silent"]
 end

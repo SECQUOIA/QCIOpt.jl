@@ -187,10 +187,13 @@ end
 
 function qci_optimize! end
 
-MOI.supports(::Optimizer{T}, ::MOI.ObjectiveFunction{F}) where {T,F<:Union{VI,SAF{T},SQF{T}}} = true
+function qci_supports_objective end
 
-MOI.supports_constraint(::Optimizer{T}, ::Type{VI}, ::Type{S}) where {T,S<:Union{LT{T},EQ{T},GT{T},MOI.Interval{T}}} = true
-MOI.supports_constraint(::Optimizer{T}, ::Type{VI}, ::Type{S}) where {T,S<:Union{MOI.ZeroOne,MOI.Integer}}           = true
+qci_supports_objective(::QCI_DEVICE, ::Type{F}) where {F} = false
+
+function MOI.supports(solver::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
+    return qci_supports_objective(solver.device, F)
+end
 
 function parse_polynomial(model::MOI.ModelLike, vm::VarMap)
     F = MOI.get(model, MOI.ObjectiveFunctionType())
