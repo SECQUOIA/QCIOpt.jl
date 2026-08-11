@@ -185,7 +185,8 @@
                     else
                         "upload output\nbuild output\nprocess output\n"
                     end
-                    @test displayed == (silent ? "" : visible_output)
+                    normalized_output = replace(displayed, "\r\n" => "\n")
+                    @test normalized_output == (silent ? "" : visible_output)
                 end
             end
         finally
