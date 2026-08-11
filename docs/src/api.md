@@ -34,10 +34,11 @@ variable must also be `Integer` or `ZeroOne`; `EqualTo` and a zero-width
 `Interval` represent a fixed single level. General continuous boxes and
 functional constraints are not supported.
 
-Both devices support [`QCIOpt.DeviceType`](@ref), `MOI.Silent`, and the raw
-optimizer attributes `"api_token"`, `"device_type"`, `"file_name"`,
-`"num_samples"`, `"relaxation_schedule"`, and `"silent"`. They do not support
-`MOI.TimeLimitSec`, `MOI.NumberOfThreads`, or arbitrary raw attributes.
+Both devices support `MOI.ObjectiveSense` for `MIN_SENSE` and `MAX_SENSE`,
+[`QCIOpt.DeviceType`](@ref), `MOI.Silent`, and the raw optimizer attributes
+`"api_token"`, `"device_type"`, `"file_name"`, `"num_samples"`,
+`"relaxation_schedule"`, and `"silent"`. They do not support `MOI.TimeLimitSec`,
+`MOI.NumberOfThreads`, or arbitrary raw attributes.
 `MOI.Silent = true` suppresses console output from file upload, job-body
 construction, and job processing while leaving solver results and provider
 metadata unchanged.

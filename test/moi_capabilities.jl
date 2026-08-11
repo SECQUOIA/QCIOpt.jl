@@ -75,6 +75,7 @@
 
             supported = [
                 QCIOpt.DeviceType(),
+                MOI.ObjectiveSense(),
                 MOI.Silent(),
                 MOI.RawOptimizerAttribute("api_token"),
                 MOI.RawOptimizerAttribute("device_type"),
