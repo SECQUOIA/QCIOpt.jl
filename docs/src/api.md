@@ -58,3 +58,11 @@ QCIOpt.get_levels
 QCIOpt.assert_level_budget
 QCIOpt.readjust_poly_values
 ```
+
+## QCI service helpers
+
+```@docs
+QCIOpt.qci_is_free_tier
+QCIOpt.qci_max_level
+QCIOpt.qci_process_job
+```

@@ -68,6 +68,52 @@
         end
     end
 
+    @testset "DIRAC-1 capability errors use MOI types" begin
+        make_qubo_model = function (sets)
+            model = MOI.Utilities.Model{Float64}()
+            x = MOI.add_variable(model)
+            for set in sets
+                MOI.add_constraint(model, x, set)
+            end
+            objective = MOI.ScalarQuadraticFunction(
+                [MOI.ScalarQuadraticTerm(1.0, x, x)],
+                MOI.ScalarAffineTerm{Float64}[],
+                0.0,
+            )
+            MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+            MOI.set(model, MOI.ObjectiveFunction{typeof(objective)}(), objective)
+            return model
+        end
+
+        integer_model = make_qubo_model((MOI.Integer(),))
+        @test_throws MOI.UnsupportedConstraint{
+            MOI.VariableIndex,
+            MOI.Integer,
+        } QCIOpt.assert_is_qubo_model(integer_model)
+
+        unconstrained_model = make_qubo_model(())
+        @test_throws ErrorException QCIOpt.assert_is_qubo_model(unconstrained_model)
+
+        fixed_rows = (
+            (MOI.EqualTo(1.0), MOI.EqualTo{Float64}),
+            (MOI.Interval(1.0, 1.0), MOI.Interval{Float64}),
+        )
+        for (fixed_set, set_type) in fixed_rows
+            fixed_model = make_qubo_model((MOI.ZeroOne(), fixed_set))
+            optimizer = QCIOpt.Optimizer()
+            device = QCIOpt.DIRAC_1{Float64}()
+            @test_throws MOI.UnsupportedConstraint{
+                MOI.VariableIndex,
+                set_type,
+            } QCIOpt.qci_load!(
+                optimizer,
+                device,
+                fixed_model;
+                api_token = "offline-token",
+            )
+        end
+    end
+
     @testset "Optimizer attributes" begin
         for device_type in ("dirac-1", "dirac-3")
             optimizer = QCIOpt.Optimizer()
@@ -129,6 +175,14 @@
                         },
                         "job_info": {},
                     }
+
+            class FailingClient:
+                def __init__(self, **kwargs):
+                    pass
+
+                def upload_file(self, *, file):
+                    print("diagnostic before failure")
+                    raise RuntimeError("provider exploded")
             """,
             python_globals,
             python_globals,
@@ -189,6 +243,31 @@
                     normalized_output = replace(displayed, "\r\n" => "\n")
                     @test normalized_output == (silent ? "" : visible_output)
                 end
+            end
+            QCIOpt.PythonCall.pysetattr(
+                QCIOpt.qcic,
+                "QciClient",
+                python_globals["FailingClient"],
+            )
+            for silent in (false, true)
+                failure = Ref{Any}(nothing)
+                displayed = QCIOpt.Suppressor.@capture_out begin
+                    try
+                        QCIOpt.qci_upload_file(
+                            Dict{String,Any}();
+                            api_token = "offline-token",
+                            silent,
+                        )
+                    catch err
+                        failure[] = err
+                    end
+                end
+
+                @test failure[] isa QCIOpt.PythonCall.PyException
+                @test occursin("provider exploded", sprint(showerror, failure[]))
+                normalized_output = replace(displayed, "\r\n" => "\n")
+                @test normalized_output ==
+                      (silent ? "" : "diagnostic before failure\n")
             end
         finally
             QCIOpt.PythonCall.pysetattr(QCIOpt.qcic, "QciClient", original_client)

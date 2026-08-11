@@ -13,22 +13,37 @@ function qci_client_wrapper(
         silent::Bool = false,
     )
 
+    capturing = ccall(:jl_generating_output, Cint, ()) == 0
+    capture_open = capturing
     output = Ref{String}("")
 
-    return try
-        local result # https://github.com/JuliaIO/Suppressor.jl?tab=readme-ov-file#variable-scope
+    if capturing
+        original_stdout = stdout
+        out_rd, out_wr = redirect_stdout()
+        out_reader = @async read(out_rd, String)
+    end
 
-        output[] = @capture_out begin
-            try
-                result = callback(client)
-            finally
-                # Python buffers stdout when Suppressor redirects the file
-                # descriptor. Flush before the capture ends so output cannot
-                # leak after a silent provider call returns.
-                PythonCall.pyimport("sys").stdout.flush()
-            end
+    finish_capture! = function ()
+        if capture_open
+            redirect_stdout(original_stdout)
+            close(out_wr)
+            capture_open = false
+            return fetch(out_reader)
+        end
+        return ""
+    end
+
+    return try
+        result = try
+            callback(client)
+        finally
+            # Python buffers stdout when Julia redirects the file descriptor.
+            # Flush before the capture ends so output cannot leak after a
+            # silent provider call returns.
+            PythonCall.pyimport("sys").stdout.flush()
         end
 
+        output[] = finish_capture!()
         silent || print(output[])
 
         return (;
@@ -37,6 +52,7 @@ function qci_client_wrapper(
             error  = nothing,
         )
     catch err
+        output[] = finish_capture!()
         qcierr = qci_parse_error(err)
 
         silent || print(output[])
@@ -48,6 +64,8 @@ function qci_client_wrapper(
             output = output,
             error  = qcierr,
         )
+    finally
+        finish_capture!()
     end
 end
 

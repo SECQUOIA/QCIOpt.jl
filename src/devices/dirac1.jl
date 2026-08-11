@@ -78,6 +78,7 @@ function assert_is_qubo_model(model::MOI.ModelLike)
 
     var_set = Set{VI}(MOI.get(model, MOI.ListOfVariableIndices()))
     bin_set = sizehint!(Set{VI}(), length(var_set))
+    int_set = sizehint!(Set{VI}(), length(var_set))
 
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI,MOI.ZeroOne}())
         vi = MOI.get(model, MOI.ConstraintFunction(), ci)
@@ -85,7 +86,23 @@ function assert_is_qubo_model(model::MOI.ModelLike)
         push!(bin_set, vi)
     end
 
-    var_set ⊆ bin_set || error("DIRAC-1 requires every variable to be binary.")
+    for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI,MOI.Integer}())
+        vi = MOI.get(model, MOI.ConstraintFunction(), ci)
+
+        push!(int_set, vi)
+    end
+
+    nonbinary_set = setdiff(var_set, bin_set)
+    if !isempty(nonbinary_set)
+        if !isdisjoint(nonbinary_set, int_set)
+            throw(
+                MOI.UnsupportedConstraint{VI,MOI.Integer}(
+                    "DIRAC-1 requires every variable to be binary.",
+                ),
+            )
+        end
+        error("DIRAC-1 requires every variable to be binary.")
+    end
 
     return nothing
 end
@@ -118,17 +135,20 @@ function load_attributes!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.M
     return nothing
 end
 
-function has_fixed_variables(model::MOI.ModelLike, ::Type{T}) where {T}
-    !isempty(MOI.get(model, MOI.ListOfConstraintIndices{VI,EQ{T}}())) && return true
+function fixed_variable_constraint_type(model::MOI.ModelLike, ::Type{T}) where {T}
+    !isempty(MOI.get(model, MOI.ListOfConstraintIndices{VI,EQ{T}}())) && return EQ{T}
 
     for ci in MOI.get(model, MOI.ListOfConstraintIndices{VI,MOI.Interval{T}}())
         set = MOI.get(model, MOI.ConstraintSet(), ci)
 
-        set.lower == set.upper && return true
+        set.lower == set.upper && return MOI.Interval{T}
     end
 
-    return false
+    return nothing
 end
+
+has_fixed_variables(model::MOI.ModelLike, ::Type{T}) where {T} =
+    !isnothing(fixed_variable_constraint_type(model, T))
 
 function qci_load!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.ModelLike; api_token::AbstractString) where {T}
     for (i, vi) in enumerate(MOI.get(model, MOI.ListOfVariableIndices()))
@@ -136,7 +156,14 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_1{T}, model::MOI.ModelLik
     end
 
     assert_is_qubo_model(model)
-    has_fixed_variables(model, T) && error("DIRAC-1 does not support fixed variables.")
+    fixed_constraint_type = fixed_variable_constraint_type(model, T)
+    if !isnothing(fixed_constraint_type)
+        throw(
+            MOI.UnsupportedConstraint{VI,fixed_constraint_type}(
+                "DIRAC-1 does not support fixed variables.",
+            ),
+        )
+    end
 
     load_attributes!(solver, device, model)
 

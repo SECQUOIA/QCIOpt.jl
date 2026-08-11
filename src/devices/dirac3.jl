@@ -171,6 +171,13 @@ function qci_store_results!(
     return nothing
 end
 
+@doc raw"""
+    qci_max_level(::DIRAC_3; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Return the DIRAC-3 total-level budget for the configured allocation: `500` on
+the free tier and `949` on the paid tier. Set `silent = true` to suppress
+provider console output while reading the allocation.
+"""
 function qci_max_level(
     ::DIRAC_3;
     url::AbstractString = QCI_URL,

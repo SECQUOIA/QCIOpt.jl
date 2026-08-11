@@ -31,7 +31,11 @@ qci_default_attributes() = Dict{String,Any}(
 )
 
 @doc raw"""
-    qci_is_free_tier
+    qci_is_free_tier(; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Return `true` when the configured QCI allocation is on the free tier. Set
+`silent = true` to suppress provider console output while reading the
+allocation.
 """
 function qci_is_free_tier(;
     url::AbstractString = QCI_URL,
