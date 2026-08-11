@@ -49,14 +49,12 @@ QCI_DEVICES["dirac-1"] = DIRAC_1
 
 const DIRAC_1_ATTRIBUTES = Set{String}([
     "num_samples",
-    "relaxation_schedule",
 ])
 
 qci_default_attributes(::Type{DIRAC_1{T}}) where {T} = Dict{String,Any}(
     qci_default_attributes()...,
-    "device_type"         => "dirac-1",
-    "num_samples"         => 10,
-    "relaxation_schedule" => 1,
+    "device_type" => "dirac-1",
+    "num_samples" => 10,
 )
 
 qci_supports_attribute(::DIRAC_1, attr::AbstractString) = (attr ∈ DIRAC_1_ATTRIBUTES)
@@ -271,10 +269,6 @@ function qci_build_job_body(
         api_token,
         silent,
         num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples")),
-        relaxation_schedule = MOI.get(
-            solver,
-            MOI.RawOptimizerAttribute("relaxation_schedule"),
-        ),
         job_name = MOI.get(solver, MOI.RawOptimizerAttribute("job_name")),
         job_tags = MOI.get(solver, MOI.RawOptimizerAttribute("job_tags")),
     )

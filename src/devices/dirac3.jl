@@ -111,7 +111,7 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLik
 end
 
 @doc raw"""
-    qci_build_poly_job_body(solver::Optimizer, device::DIRAC_3, file_id, num_levels; api_token, silent)
+    qci_build_poly_job_body(solver::Optimizer, device::DIRAC_3; file_id, num_levels, api_token, silent)
 
 Build a DIRAC-3 integer-polynomial job body from the validated raw optimizer
 attributes stored on `solver`. This is the network-free caller-to-client
@@ -119,9 +119,9 @@ boundary used by `qci_optimize!`.
 """
 function qci_build_poly_job_body(
     solver::Optimizer{T},
-    ::DIRAC_3{T},
+    ::DIRAC_3{T};
     file_id::AbstractString,
-    num_levels::AbstractVector{<:Integer};
+    num_levels::AbstractVector{<:Integer},
     api_token::AbstractString = qci_default_token(),
     silent::Bool = false,
 ) where {T}
@@ -162,9 +162,9 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     file_id  = qci_upload_file(request.file; api_token, silent)
     job_body = qci_build_poly_job_body(
         solver,
-        device,
+        device;
         file_id,
-        request.num_levels;
+        num_levels = request.num_levels,
         api_token,
         silent,
     )

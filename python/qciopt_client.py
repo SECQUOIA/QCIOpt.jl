@@ -402,8 +402,6 @@ class OptimizationClient:
         device_config: dict[str, Any] = {}
         if "num_samples" in job_params:
             device_config["num_samples"] = job_params["num_samples"]
-        if "relaxation_schedule" in job_params:
-            device_config["relaxation_schedule"] = job_params["relaxation_schedule"]
 
         if job_type == "sample-qubo":
             if device_type != "dirac-1":
@@ -427,6 +425,8 @@ class OptimizationClient:
 
             device_type = "dirac-3_qudit"
             device_config["num_levels"] = job_params["num_levels"]
+            if "relaxation_schedule" in job_params:
+                device_config["relaxation_schedule"] = job_params["relaxation_schedule"]
 
             problem_name = "qudit_hamiltonian_optimization"
             problem_config = (

@@ -87,14 +87,14 @@ set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
 ## Updating optimization parameters
 
 QCIOpt exposes provider-specific settings through JuMP's raw optimizer
-attribute names. Both supported devices accept the following job parameters:
+attribute names. Supported job parameters depend on the selected device:
 
-| Attribute | Type | Default | Provider field |
-|:----------|:-----|:--------|:---------------|
-| `"num_samples"` | positive integer | `10` | device configuration |
-| `"relaxation_schedule"` | positive integer | `1` | device configuration |
-| `"job_name"` | string | `""` | job submission |
-| `"job_tags"` | vector of strings | `String[]` | job submission |
+| Attribute | Type | Default | Devices | Provider field |
+|:----------|:-----|:--------|:--------|:---------------|
+| `"num_samples"` | integer in `1:100` | `10` | DIRAC-1, DIRAC-3 | device configuration |
+| `"relaxation_schedule"` | integer in `1:4` | `1` | DIRAC-3 | device configuration |
+| `"job_name"` | string | `""` | DIRAC-1, DIRAC-3 | job submission |
+| `"job_tags"` | vector of strings | `String[]` | DIRAC-1, DIRAC-3 | job submission |
 
 DIRAC-3 additionally derives its per-variable `num_levels` vector from the
 validated integer domains; it is not a user-settable raw attribute. Unsupported

@@ -190,7 +190,7 @@ def test_job_body_rejects_unsupported_file_keywords() -> None:
         )
 
 
-def test_qubo_job_body_preserves_supported_job_configuration() -> None:
+def test_qubo_job_body_matches_qci_client_supported_job_configuration() -> None:
     client = client_with_session(FakeSession({}))
 
     body = client.build_job_body(
@@ -208,6 +208,4 @@ def test_qubo_job_body_preserves_supported_job_configuration() -> None:
     submission = body["job_submission"]
     assert submission["job_name"] == "issue-39-contract"
     assert submission["job_tags"] == ["offline", "boundary-test"]
-    assert submission["device_config"] == {
-        "dirac-1": {"num_samples": 7, "relaxation_schedule": 4}
-    }
+    assert submission["device_config"] == {"dirac-1": {"num_samples": 7}}

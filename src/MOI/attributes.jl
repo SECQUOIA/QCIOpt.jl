@@ -58,11 +58,20 @@ function MOI.get(solver::Optimizer{T}, attr::MOI.RawOptimizerAttribute) where {T
 end
 
 function validate_raw_optimizer_attribute(name::String, value)
-    if name in ("num_samples", "relaxation_schedule")
-        if value isa Bool || !(value isa Integer) || value < 1
+    if name == "num_samples"
+        if value isa Bool || !(value isa Integer) || !(1 <= value <= 100)
             throw(
                 ArgumentError(
-                    "raw optimizer attribute '$name' must be a positive integer; " *
+                    "raw optimizer attribute 'num_samples' must be an integer in 1:100; " *
+                    "received $(repr(value))",
+                ),
+            )
+        end
+    elseif name == "relaxation_schedule"
+        if value isa Bool || !(value isa Integer) || !(1 <= value <= 4)
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'relaxation_schedule' must be an integer in 1:4; " *
                     "received $(repr(value))",
                 ),
             )

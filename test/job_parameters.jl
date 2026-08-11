@@ -2,7 +2,9 @@ function configured_job_optimizer(device_type::String)
     optimizer = QCIOpt.Optimizer()
     MOI.set(optimizer, QCIOpt.DeviceType(), device_type)
     MOI.set(optimizer, MOI.RawOptimizerAttribute("num_samples"), 7)
-    MOI.set(optimizer, MOI.RawOptimizerAttribute("relaxation_schedule"), 4)
+    if device_type == "dirac-3"
+        MOI.set(optimizer, MOI.RawOptimizerAttribute("relaxation_schedule"), 4)
+    end
     MOI.set(optimizer, MOI.RawOptimizerAttribute("job_name"), "issue-39-contract")
     MOI.set(
         optimizer,
@@ -29,13 +31,25 @@ end
 
             for (name, default) in (
                 "num_samples" => 10,
-                "relaxation_schedule" => 1,
                 "job_name" => "",
                 "job_tags" => String[],
             )
                 attribute = MOI.RawOptimizerAttribute(name)
                 @test MOI.supports(optimizer, attribute)
                 @test MOI.get(optimizer, attribute) == default
+            end
+
+            relaxation_schedule =
+                MOI.RawOptimizerAttribute("relaxation_schedule")
+            if device_type == "dirac-3"
+                @test MOI.supports(optimizer, relaxation_schedule)
+                @test MOI.get(optimizer, relaxation_schedule) == 1
+            else
+                @test !MOI.supports(optimizer, relaxation_schedule)
+                @test_throws MOI.UnsupportedAttribute MOI.get(
+                    optimizer,
+                    relaxation_schedule,
+                )
             end
         end
     end
@@ -56,7 +70,6 @@ end
         @test submission["device_config"] == Dict{String,Any}(
             "dirac-1" => Dict{String,Any}(
                 "num_samples" => 7,
-                "relaxation_schedule" => 4,
             ),
         )
         @test submission["problem_config"] == Dict{String,Any}(
@@ -70,9 +83,9 @@ end
         optimizer = configured_job_optimizer("dirac-3")
         body = QCIOpt.qci_build_poly_job_body(
             optimizer,
-            optimizer.device,
-            "offline-polynomial-file",
-            [2, 3];
+            optimizer.device;
+            file_id = "offline-polynomial-file",
+            num_levels = [2, 3],
             api_token = "offline-token",
             silent = true,
         )
@@ -100,13 +113,26 @@ end
             optimizer = QCIOpt.Optimizer()
             MOI.set(optimizer, QCIOpt.DeviceType(), device_type)
 
+            for boundary in (1, 100)
+                MOI.set(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("num_samples"),
+                    boundary,
+                )
+                @test MOI.get(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("num_samples"),
+                ) == boundary
+            end
+
+            for value in (0, 101, 1.5, true)
+                error = raw_attribute_error(optimizer, "num_samples", value)
+                @test error isa ArgumentError
+                @test occursin("num_samples", sprint(showerror, error))
+                @test occursin("1:100", sprint(showerror, error))
+            end
+
             for (name, value) in (
-                ("num_samples", 0),
-                ("num_samples", 1.5),
-                ("num_samples", true),
-                ("relaxation_schedule", -1),
-                ("relaxation_schedule", 2.5),
-                ("relaxation_schedule", false),
                 ("job_name", nothing),
                 ("job_name", 39),
                 ("job_tags", "offline"),
@@ -117,10 +143,45 @@ end
                 @test occursin(name, sprint(showerror, error))
             end
 
+            relaxation_schedule =
+                MOI.RawOptimizerAttribute("relaxation_schedule")
+            if device_type == "dirac-3"
+                for boundary in (1, 4)
+                    MOI.set(optimizer, relaxation_schedule, boundary)
+                    @test MOI.get(optimizer, relaxation_schedule) == boundary
+                end
+
+                for value in (0, 5, 2.5, false)
+                    error = raw_attribute_error(
+                        optimizer,
+                        "relaxation_schedule",
+                        value,
+                    )
+                    @test error isa ArgumentError
+                    @test occursin(
+                        "relaxation_schedule",
+                        sprint(showerror, error),
+                    )
+                    @test occursin("1:4", sprint(showerror, error))
+                end
+            else
+                @test_throws MOI.UnsupportedAttribute MOI.set(
+                    optimizer,
+                    relaxation_schedule,
+                    1,
+                )
+            end
+
+            unsupported =
+                MOI.RawOptimizerAttribute("arbitrary_provider_option")
             @test_throws MOI.UnsupportedAttribute MOI.set(
                 optimizer,
-                MOI.RawOptimizerAttribute("arbitrary_provider_option"),
+                unsupported,
                 "silently dropped before issue 39",
+            )
+            @test_throws MOI.UnsupportedAttribute MOI.get(
+                optimizer,
+                unsupported,
             )
         end
     end

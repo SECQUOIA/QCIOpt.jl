@@ -131,7 +131,6 @@ using Suppressor: @capture_out
                 MOI.RawOptimizerAttribute("job_name"),
                 MOI.RawOptimizerAttribute("job_tags"),
                 MOI.RawOptimizerAttribute("num_samples"),
-                MOI.RawOptimizerAttribute("relaxation_schedule"),
                 MOI.RawOptimizerAttribute("silent"),
             ]
             unsupported = [
@@ -139,6 +138,18 @@ using Suppressor: @capture_out
                 MOI.NumberOfThreads(),
                 MOI.RawOptimizerAttribute("arbitrary_provider_option"),
             ]
+
+            if device_type == "dirac-3"
+                push!(
+                    supported,
+                    MOI.RawOptimizerAttribute("relaxation_schedule"),
+                )
+            else
+                push!(
+                    unsupported,
+                    MOI.RawOptimizerAttribute("relaxation_schedule"),
+                )
+            end
 
             @test all(attr -> MOI.supports(optimizer, attr), supported)
             @test all(attr -> !MOI.supports(optimizer, attr), unsupported)

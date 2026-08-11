@@ -57,7 +57,6 @@
         Dict{String,Any}(
             "dirac-1" => Dict{String,Any}(
                 "num_samples" => 7,
-                "relaxation_schedule" => 1,
             ),
         )
 
