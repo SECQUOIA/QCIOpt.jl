@@ -180,6 +180,50 @@ if QCIOpt.__auth__()
                 end
             end
         end
+
+        @testset "DIRAC-3 IP optimality over unequal nonzero bounds" begin
+            # The value/table checks above are consistency checks: they hold at
+            # whatever point comes back, so they stay green even when the
+            # submitted polynomial was shifted over a region the model never
+            # contained — the device then optimizes the wrong problem and the
+            # mapped-back point is still inside the box, just not optimal
+            # (issue #41). Only an optimality assertion catches that.
+            #
+            # This asks the device to find the optimum of a 12-point problem,
+            # so it depends on sampling quality rather than on wiring alone.
+            let model = Model(QCIOpt.Optimizer)
+                f(x1, x2) = 2 + 3 * x1 - x2 + 4 * x1 * x2
+                table = Dict([x1, x2] => f(x1, x2) for x1 = -3:-1, x2 = 2:5)
+                best = minimum(values(table)) # f(-3, 5) = -72
+
+                @variable(model, -3 <= x1 <= -1, Int)
+                @variable(model, 2 <= x2 <= 5, Int)
+
+                @objective(model, Min, f(x1, x2))
+
+                set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, MOI.RawOptimizerAttribute("num_samples"), 10)
+
+                optimize!(model)
+
+                @test result_count(model) >= 1
+
+                objectives = [objective_value(model; result = i) for i = 1:result_count(model)]
+
+                @test issorted(objectives)
+
+                for i = 1:result_count(model)
+                    let xi = round.(Int, [value(x1; result = i), value(x2; result = i)])
+                        # Every returned point lies inside the model's domain.
+                        @test -3 <= xi[1] <= -1
+                        @test 2 <= xi[2] <= 5
+                        @test objective_value(model; result = i) ≈ table[xi]
+                    end
+                end
+
+                @test first(objectives) ≈ best
+            end
+        end
     end
 else
     @info "Skipping live QCI service smoke tests because QCI_TOKEN is not set."
