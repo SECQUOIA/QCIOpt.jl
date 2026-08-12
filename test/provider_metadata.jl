@@ -580,6 +580,40 @@
         end
     end
 
+    @testset "Sampler publishes the shared fields unchanged" begin
+        # The API reference claims the sampler's status, job-id, file-id, and
+        # device-usage entries cannot drift from this contract because both
+        # sides read them through `qci_provider_metadata`. Pin that here: the
+        # timing entries are deliberately excluded, since the sampler reads them
+        # from the provider's job-metrics endpoint instead.
+        response = completed_qubo_response()
+        provider = QCIOpt.qci_provider_metadata(response)
+        published = QCIOpt.DiracSampler.metadata_from_response(
+            response,
+            nothing, # no job-metrics payload, so timing falls back to the response
+            Dict{String,Any}();
+            backend_version = "test-bridge",
+            num_samples = 6,
+        )
+
+        @test published["status"] == provider["status"]
+        @test published["backend"]["job_id"] == provider["job_id"]
+        @test published["backend"]["result_file_id"] == provider["result_file_id"]
+        @test published["backend"]["problem_file_id"] == provider["problem_file_id"]
+        @test published["time"]["device_usage"] == provider["device_usage_sec"]
+
+        # Each of those is a real value here, not two matching `nothing`s.
+        for value in (
+            provider["status"],
+            provider["job_id"],
+            provider["result_file_id"],
+            provider["problem_file_id"],
+            provider["device_usage_sec"],
+        )
+            @test !isnothing(value)
+        end
+    end
+
     @testset "Documented contract covers every metadata key" begin
         api_reference = replace(
             read(joinpath(dirname(@__DIR__), "docs", "src", "api.md"), String),

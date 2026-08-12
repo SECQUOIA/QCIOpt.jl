@@ -78,8 +78,12 @@ all reports `"UNKNOWN"`.
 
 `QCIOpt.DiracSampler` publishes the same provider information under the
 standardized [QUBODrivers](https://github.com/JuliaQUBO/QUBODrivers.jl) sampler
-keys, which a benchmark harness reads from the `SampleSet`. The two views are
-extracted by the same helpers, so they cannot drift:
+keys, which a benchmark harness reads from the `SampleSet`. The sampler derives
+its status, job-id, file-id, and device-usage entries from
+[`QCIOpt.qci_provider_metadata`](@ref), so those cannot drift from the table
+above. The timing rows are a documented correspondence rather than shared code,
+because the two sides read timing from different provider sources — see the note
+after the table:
 
 | `ProviderMetadata` key | `DiracSampler` sample-set metadata          |
 |:-----------------------|:--------------------------------------------|
