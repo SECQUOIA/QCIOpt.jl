@@ -105,6 +105,27 @@ silently dropped.
 set_attribute(model, "num_samples", 10)
 ```
 
+## Reading provider job metadata
+
+A solve keeps the QCI job response, so the job identity, status, timing, file
+ids, and provider diagnostics stay reachable afterwards on both devices:
+
+```julia
+metadata = get_attribute(model, QCIOpt.ProviderMetadata())
+
+println(metadata["job_id"])         # provider job identifier
+println(metadata["run_time_sec"])   # seconds the device ran the job
+println(metadata["error"])          # provider job-error diagnostic, or nothing
+```
+
+Provider fields are optional: every documented key is always present and is
+`nothing` when the job response does not carry it, so a job that errored or
+never ran still reports its status and whatever else it did carry.
+`metadata["response"]` holds the job response itself. The
+[API reference](https://secquoia.github.io/QCIOpt.jl/dev/api/) lists every key
+and how it corresponds to the standardized sampler metadata that
+`QCIOpt.DiracSampler` publishes for benchmark harnesses.
+
 ## API Token
 
 To access QCI's devices, create an account at

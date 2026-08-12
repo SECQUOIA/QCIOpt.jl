@@ -182,6 +182,12 @@ end
 Store a parsed provider solution on the solver, reading the model's
 `MOI.ObjectiveSense` to restore original objective values and best-first
 ordering. Network-free, so the sense handoff is testable offline.
+
+Only the sample points and values are adjusted: the provider response travels
+through as the solution metadata untouched, which is what keeps the job
+identity, timing, status, and diagnostic fields of
+[`qci_provider_metadata`](@ref) readable through [`ProviderMetadata`](@ref) after
+the solve.
 """
 function qci_store_results!(
     solver::Optimizer{T},
@@ -190,7 +196,6 @@ function qci_store_results!(
     vars,
     solution::Solution{T,T},
 ) where {T}
-    # TODO: Preserve job identifiers, timing, status, and provider diagnostics in metadata.
     solver.solution = Solution{T,T}(
         readjust_poly_values(solver, device, vars, solution.samples, MOI.get(model, MOI.ObjectiveSense())),
         solution.metadata,

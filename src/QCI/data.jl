@@ -145,9 +145,24 @@ function qci_data_file(p::DP.Polynomial{T}; file_name::Union{AbstractString,Noth
     return qci_data_file(x -> varmap[x]::Int, p; file_name)
 end
 
+@doc raw"""
+    qci_parse_results(::Type{U}, ::Type{T}, response) where {U,T}
+
+Turn a QCI job response into a `Solution`: the sampled points for a
+`COMPLETED` job, and no samples for any other provider status. The response is
+kept verbatim as the solution metadata in every case, which is what preserves
+the job identity, timing, and diagnostic fields that
+[`qci_provider_metadata`](@ref) reads back out.
+
+Only `status` is required of the response. Every other field is optional, so an
+`ERRORED` job that carries no diagnostic message still returns with its status
+intact instead of failing on a missing field.
+"""
 function qci_parse_results(::Type{U}, ::Type{T}, response) where {U, T}
-    if response["status"] == "COMPLETED"
-        res = response["results"]
+    status = qci_response_field(response, "status")
+
+    if status == "COMPLETED"
+        res = assert_provider_results(response)
 
         samples = map(
             (x, v, r) -> Sample{U,T}(Vector{U}(x), convert(T, v), r),
@@ -157,11 +172,56 @@ function qci_parse_results(::Type{U}, ::Type{T}, response) where {U, T}
         )
 
         return Solution{U,T}(samples, response)
-    elseif response["status"] == "ERRORED"
-        @error(response["job_info"]["job_result"]["error"])
+    elseif status == "ERRORED"
+        @error(
+            something(
+                qci_provider_error(response),
+                "QCI reported an ERRORED job without a job-error message.",
+            )
+        )
 
         return Solution{U,T}(Sample{U,T}[], response)
     else
         return Solution{U,T}(Sample{U,T}[], response)
     end
+end
+
+@doc raw"""
+    assert_provider_results(response)
+
+Return the `results` payload of a `COMPLETED` job response, checking that it
+carries the sample fields QCIOpt reads and that they agree on length.
+
+A `COMPLETED` job always carries results, so a response that does not is a
+provider-contract violation rather than an optional field: it fails here, naming
+the reported status and the offending field, instead of surfacing as a
+`KeyError` or a length mismatch from deeper in the parse.
+"""
+function assert_provider_results(response)
+    res = qci_response_field(response, "results")
+
+    if !(res isa AbstractDict)
+        error(
+            "QCI reported a COMPLETED job whose response carries no 'results' " *
+            "payload (got $(repr(res))).",
+        )
+    end
+
+    for key in ("solutions", "energies", "counts")
+        haskey(res, key) || error(
+            "QCI reported a COMPLETED job whose 'results' payload is missing " *
+            "'$(key)'.",
+        )
+    end
+
+    lengths = Dict(key => length(res[key]) for key in ("solutions", "energies", "counts"))
+
+    if !allequal(values(lengths))
+        error(
+            "QCI reported a COMPLETED job whose 'results' fields disagree on " *
+            "length: $(join(("$(key) => $(lengths[key])" for key in ("solutions", "energies", "counts")), ", ")).",
+        )
+    end
+
+    return res
 end
