@@ -19,7 +19,7 @@ import numpy as np
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
-__version__ = "qciopt-bridge-0.1.0"
+__version__ = "qciopt-bridge-0.2.0"
 __qci_client_parity_version__ = "5.0.0"
 
 _BACKOFF_FACTOR = 2

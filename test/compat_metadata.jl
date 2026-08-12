@@ -59,8 +59,9 @@ import Pkg
     @test haskey(condapkg["pip"]["deps"], "numpy")
     @test occursin("QCIOpt and DWave", readme_text)
     @test occursin("does not install the `qci-client` distribution", readme_words)
+    release_tag = "v$(project[\"version\"])"
     @test occursin(
-        "Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\", rev=\"v0.1.0\")",
+        "Pkg.add(url=\"https://github.com/SECQUOIA/QCIOpt.jl\", rev=\"$release_tag\")",
         readme_text,
     )
     @test occursin("QCIOpt.jl is currently a URL-only package", readme_words)
