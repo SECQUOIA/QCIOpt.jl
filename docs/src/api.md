@@ -36,9 +36,12 @@ functional constraints are not supported.
 
 Both devices support `MOI.ObjectiveSense` for `MIN_SENSE` and `MAX_SENSE`,
 [`QCIOpt.DeviceType`](@ref), `MOI.Silent`, and the raw optimizer attributes
-`"api_token"`, `"device_type"`, `"file_name"`, `"num_samples"`,
-`"relaxation_schedule"`, and `"silent"`. They do not support `MOI.TimeLimitSec`,
-`MOI.NumberOfThreads`, or arbitrary raw attributes.
+`"api_token"`, `"device_type"`, `"file_name"`, `"num_samples"`, `"job_name"`,
+`"job_tags"`, and `"silent"`. DIRAC-3 additionally supports
+`"relaxation_schedule"`. Job parameters use the same names, ranges, and defaults
+documented in the README; DIRAC-3 derives `num_levels` from the model rather
+than exposing it as a raw attribute. The devices do not support
+`MOI.TimeLimitSec`, `MOI.NumberOfThreads`, or arbitrary raw attributes.
 `MOI.Silent = true` suppresses console output from file upload, job-body
 construction, and job processing while leaving solver results and provider
 metadata unchanged.
@@ -62,6 +65,8 @@ QCIOpt.readjust_poly_values
 ## QCI service helpers
 
 ```@docs
+QCIOpt.qci_build_job_body
+QCIOpt.qci_build_poly_job_body
 QCIOpt.qci_is_free_tier
 QCIOpt.qci_max_level
 QCIOpt.qci_process_job

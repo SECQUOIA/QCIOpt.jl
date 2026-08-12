@@ -51,21 +51,62 @@ MOI.supports(::Optimizer{T}, ::MOI.Silent) where {T} = true
 # [x] TimeLimitSec	        Yes	Yes	Yes     - check on QCI on how long you allow the solver to run, if not, no support also; might be device dependent; may need to differentiate among the solvers- if tricky do last. 
 MOI.supports(::Optimizer{T}, ::MOI.TimeLimitSec) where {T} = false
 
-# [ ] RawOptimizerAttribute	Yes	Yes	Yes     - select optimizer based on string? skip for now
 function MOI.get(solver::Optimizer{T}, attr::MOI.RawOptimizerAttribute) where {T}
-    @assert MOI.supports(solver, attr)
+    MOI.supports(solver, attr) || throw(MOI.UnsupportedAttribute(attr))
 
     return solver.attributes[attr.name]
 end
 
+function validate_raw_optimizer_attribute(name::String, value)
+    if name == "num_samples"
+        if value isa Bool || !(value isa Integer) || !(1 <= value <= 100)
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'num_samples' must be an integer in 1:100; " *
+                    "received $(repr(value))",
+                ),
+            )
+        end
+    elseif name == "relaxation_schedule"
+        if value isa Bool || !(value isa Integer) || !(1 <= value <= 4)
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'relaxation_schedule' must be an integer in 1:4; " *
+                    "received $(repr(value))",
+                ),
+            )
+        end
+    elseif name == "job_name"
+        value isa AbstractString || throw(
+            ArgumentError(
+                "raw optimizer attribute 'job_name' must be a string; " *
+                "received $(repr(value))",
+            ),
+        )
+        return String(value)
+    elseif name == "job_tags"
+        if !(value isa AbstractVector) || !all(tag -> tag isa AbstractString, value)
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'job_tags' must be a vector of strings; " *
+                    "received $(repr(value))",
+                ),
+            )
+        end
+        return String[String(tag) for tag in value]
+    end
+
+    return value
+end
+
 function MOI.set(solver::Optimizer{T}, attr::MOI.RawOptimizerAttribute, value) where {T}
-    @assert MOI.supports(solver, attr)
+    MOI.supports(solver, attr) || throw(MOI.UnsupportedAttribute(attr))
 
     if attr.name == "device_type"
         # Treat this as a special case as this modifies the supported attributes
         MOI.set(solver, DeviceType(), value)
     else
-        solver.attributes[attr.name] = value
+        solver.attributes[attr.name] = validate_raw_optimizer_attribute(attr.name, value)
     end
 end
 

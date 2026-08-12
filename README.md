@@ -87,8 +87,19 @@ set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
 ## Updating optimization parameters
 
 QCIOpt exposes provider-specific settings through JuMP's raw optimizer
-attribute names. The `"num_samples"` attribute accepts a positive integer and
-defaults to `10` for the supported QCI devices.
+attribute names. Supported job parameters depend on the selected device:
+
+| Attribute | Type | Default | Devices | Provider field |
+|:----------|:-----|:--------|:--------|:---------------|
+| `"num_samples"` | integer in `1:100` | `10` | DIRAC-1, DIRAC-3 | device configuration |
+| `"relaxation_schedule"` | integer in `1:4` | `1` | DIRAC-3 | device configuration |
+| `"job_name"` | string | `""` | DIRAC-1, DIRAC-3 | job submission |
+| `"job_tags"` | vector of strings | `String[]` | DIRAC-1, DIRAC-3 | job submission |
+
+DIRAC-3 additionally derives its per-variable `num_levels` vector from the
+validated integer domains; it is not a user-settable raw attribute. Unsupported
+raw attributes and invalid values fail at the MOI boundary instead of being
+silently dropped.
 
 ```julia
 set_attribute(model, "num_samples", 10)

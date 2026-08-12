@@ -54,7 +54,11 @@
                 Dict{String,Any}("qubo_file_id" => "qubo-file"),
         )
     @test qubo_submission["device_config"] ==
-        Dict{String,Any}("dirac-1" => Dict{String,Any}("num_samples" => 7))
+        Dict{String,Any}(
+            "dirac-1" => Dict{String,Any}(
+                "num_samples" => 7,
+            ),
+        )
 
     polynomial_body = QCIOpt.qci_build_poly_job_body(
         "polynomial-file";

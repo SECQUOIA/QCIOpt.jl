@@ -128,15 +128,28 @@ using Suppressor: @capture_out
                 MOI.RawOptimizerAttribute("api_token"),
                 MOI.RawOptimizerAttribute("device_type"),
                 MOI.RawOptimizerAttribute("file_name"),
+                MOI.RawOptimizerAttribute("job_name"),
+                MOI.RawOptimizerAttribute("job_tags"),
                 MOI.RawOptimizerAttribute("num_samples"),
-                MOI.RawOptimizerAttribute("relaxation_schedule"),
                 MOI.RawOptimizerAttribute("silent"),
             ]
             unsupported = [
                 MOI.TimeLimitSec(),
                 MOI.NumberOfThreads(),
-                MOI.RawOptimizerAttribute("job_name"),
+                MOI.RawOptimizerAttribute("arbitrary_provider_option"),
             ]
+
+            if device_type == "dirac-3"
+                push!(
+                    supported,
+                    MOI.RawOptimizerAttribute("relaxation_schedule"),
+                )
+            else
+                push!(
+                    unsupported,
+                    MOI.RawOptimizerAttribute("relaxation_schedule"),
+                )
+            end
 
             @test all(attr -> MOI.supports(optimizer, attr), supported)
             @test all(attr -> !MOI.supports(optimizer, attr), unsupported)
