@@ -114,7 +114,7 @@ ids, and provider diagnostics stay reachable afterwards on both devices:
 metadata = get_attribute(model, QCIOpt.ProviderMetadata())
 
 println(metadata["job_id"])         # provider job identifier
-println(metadata["run_time_sec"])   # seconds the device ran the job
+println(metadata["run_time_sec"])   # seconds the provider spent running the job
 println(metadata["error"])          # provider job-error diagnostic, or nothing
 ```
 

@@ -169,3 +169,9 @@ function MOI.get(solver::Optimizer{T}, ::ProviderMetadata) where {T}
 end
 
 MOI.is_set_by_optimize(::ProviderMetadata) = true
+
+# A `CachingOptimizer` — what `JuMP.Model(QCIOpt.Optimizer)` wraps this in —
+# maps every optimizer-attribute value it returns through `map_indices`, which
+# has no method for a `Dict{String,Any}`. The value carries no MOI indices, so
+# it passes through unchanged, as `MOI.RawOptimizerAttribute` values do.
+MOIU.map_indices(::Any, ::ProviderMetadata, value) = value

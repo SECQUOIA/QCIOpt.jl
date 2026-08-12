@@ -179,7 +179,6 @@
     )
 
     @testset "Completed job on both device paths" begin
-        # (device label, response, solver builder, problem file id, best value)
         cases = [
             ("DIRAC-1", completed_qubo_response, qubo_solver, "qubo-file-1", "result-file-qubo", 0.75, 1.0),
             ("DIRAC-3", completed_poly_response, poly_solver, "poly-file-3", "result-file-poly", 1.25, -3.0),
@@ -442,6 +441,30 @@
             @test QCIOpt.qci_problem_file_id(deprecated) == "hamiltonian-file-3"
         end
 
+        @testset "Ambiguous problem config resolves deterministically" begin
+            # A submission carries exactly one problem type. Should a response
+            # ever carry several, the id must not fall out of `Dict` iteration
+            # order: the documented tie-break is the alphabetically first
+            # problem type, here `ising_...` ahead of `quadratic_...` and
+            # `qudit_...`.
+            ambiguous = Dict{String,Any}(
+                "job_info" => Dict{String,Any}(
+                    "job_submission" => Dict{String,Any}(
+                        "problem_config" => Dict{String,Any}(
+                            "qudit_hamiltonian_optimization" =>
+                                Dict{String,Any}("polynomial_file_id" => "qudit-file"),
+                            "quadratic_unconstrained_binary_optimization" =>
+                                Dict{String,Any}("qubo_file_id" => "qubo-file"),
+                            "ising_hamiltonian_optimization" =>
+                                Dict{String,Any}("polynomial_file_id" => "ising-file"),
+                        ),
+                    ),
+                ),
+            )
+
+            @test QCIOpt.qci_problem_file_id(ambiguous) == "ising-file"
+        end
+
         @testset "Timestamp parsing" begin
             # `rfc3339nano` keys can carry more precision than `DateTime` holds.
             nanos = Dict{String,Any}(
@@ -509,6 +532,51 @@
             @test isnothing(QCIOpt.qci_parse_timestamp("2026-06-14"))
             @test QCIOpt.qci_parse_timestamp("2026-06-14T10:11:38.359Z") ==
                 QCIOpt.Dates.DateTime(2026, 6, 14, 10, 11, 38, 359)
+        end
+    end
+
+    @testset "Documented JuMP access" begin
+        # The README and API reference read the attribute through JuMP on a
+        # plain `Model`, which wraps the optimizer in a `CachingOptimizer`; that
+        # maps every optimizer-attribute value it returns through `map_indices`,
+        # so a `Dict` value needs an explicit pass-through method to be readable
+        # at all. Reading it before a solve is enough to exercise that path.
+        @testset "Model" begin
+            model = Model(QCIOpt.Optimizer)
+            metadata = get_attribute(model, QCIOpt.ProviderMetadata())
+
+            @test metadata isa Dict{String,Any}
+            @test issetequal(keys(metadata), metadata_keys)
+            @test isnothing(metadata["status"])
+        end
+
+        # `direct_model` reaches the optimizer with no caching layer, so it can
+        # also be checked against a stored response.
+        @testset "direct_model" begin
+            response = completed_qubo_response()
+            model = direct_model(QCIOpt.Optimizer())
+
+            set_attribute(model, QCIOpt.DeviceType(), "dirac-1")
+
+            solver = backend(model)
+            device = getfield(solver, :device)
+
+            QCIOpt.qci_load!(solver, device, qubo_model(); api_token = "dummy-token")
+            QCIOpt.qci_store_results!(
+                solver,
+                device,
+                qubo_model(),
+                parse_response(response),
+            )
+
+            metadata = get_attribute(model, QCIOpt.ProviderMetadata())
+
+            @test metadata["status"] == "COMPLETED"
+            @test metadata["job_id"] == "job-qubo-1"
+            @test metadata["result_file_id"] == "result-file-qubo"
+            @test metadata["problem_file_id"] == "qubo-file-1"
+            @test metadata["run_time_sec"] ≈ 1.0
+            @test metadata["response"] === response
         end
     end
 

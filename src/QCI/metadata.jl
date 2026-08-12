@@ -125,7 +125,12 @@ function qci_problem_file_id(response)
 
     problem_config isa AbstractDict || return nothing
 
-    for config in values(problem_config)
+    # Read the problem types in a fixed order: a response carrying more than one
+    # would otherwise resolve to whichever the `Dict` happened to yield first,
+    # which varies between runs on identical input.
+    for problem_type in sort!(collect(keys(problem_config)); by = string)
+        config = problem_config[problem_type]
+
         config isa AbstractDict || continue
 
         for key in QCI_PROBLEM_FILE_ID_KEYS
@@ -173,6 +178,10 @@ Every key is always present; a value the response does not carry is `nothing`,
 so reading one field never depends on another being there. `"response"` keeps
 the unnormalized job response reachable, since the provider may report fields
 this table does not name.
+
+Unlike every other value here, `"response"` is not a fresh object: it aliases
+the solution metadata the solver holds, so it must not be mutated, and
+`MOI.empty!` invalidates it by emptying that dictionary in place.
 
 This is the same provider information the QUBODrivers sampler publishes under
 its own standardized keys; see `QCIOpt.DiracSampler` and the API reference for

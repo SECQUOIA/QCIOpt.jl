@@ -69,8 +69,10 @@ metadata["response"]       # the job response itself
 Every key listed on [`QCIOpt.qci_provider_metadata`](@ref) is always present and
 is `nothing` when the response does not carry it, so reading one field never
 depends on another being reported. The provider status is also
-`MOI.RawStatusString`, and `"run_time_sec"` is `MOI.SolveTimeSec`; both report a
-job that did not complete as `"UNKNOWN"`/`NaN` rather than failing.
+`MOI.RawStatusString`, and `"run_time_sec"` is `MOI.SolveTimeSec`. Neither fails
+on a partial response: a job that did not complete keeps its own provider status
+and reports `NaN` for the time, and stored metadata carrying no status string at
+all reports `"UNKNOWN"`.
 
 ### Relationship to the QUBODrivers sampler metadata
 
@@ -110,7 +112,7 @@ QCIOpt.qci_elapsed_seconds
 QCIOpt.qci_status_timestamp
 QCIOpt.qci_parse_timestamp
 QCIOpt.qci_parse_results
-QCIOpt.assert_provider_results
+QCIOpt.qci_provider_results
 ```
 
 ## DIRAC-3 variable transformation

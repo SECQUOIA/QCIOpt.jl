@@ -162,7 +162,7 @@ function qci_parse_results(::Type{U}, ::Type{T}, response) where {U, T}
     status = qci_response_field(response, "status")
 
     if status == "COMPLETED"
-        res = assert_provider_results(response)
+        res = qci_provider_results(response)
 
         samples = map(
             (x, v, r) -> Sample{U,T}(Vector{U}(x), convert(T, v), r),
@@ -187,7 +187,7 @@ function qci_parse_results(::Type{U}, ::Type{T}, response) where {U, T}
 end
 
 @doc raw"""
-    assert_provider_results(response)
+    qci_provider_results(response)
 
 Return the `results` payload of a `COMPLETED` job response, checking that it
 carries the sample fields QCIOpt reads and that they agree on length.
@@ -197,7 +197,7 @@ provider-contract violation rather than an optional field: it fails here, naming
 the reported status and the offending field, instead of surfacing as a
 `KeyError` or a length mismatch from deeper in the parse.
 """
-function assert_provider_results(response)
+function qci_provider_results(response)
     res = qci_response_field(response, "results")
 
     if !(res isa AbstractDict)
