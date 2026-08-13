@@ -18,11 +18,18 @@ end
 MOI.get(::Optimizer{T}, ::MOI.DualStatus) where {T} = MOI.NO_SOLUTION
 
 # [x] RawStatusString
+# `"OPTIMIZE_NOT_CALLED"` before a solve, and `"UNKNOWN"` for stored provider
+# metadata that reports no status string, so a partial response reports itself
+# as unrecognized (and so `MOI.OTHER_ERROR`) rather than raising here.
+const QCI_UNKNOWN_STATUS = "UNKNOWN"
+
 function MOI.get(solver::Optimizer{T}, ::MOI.RawStatusString) where {T}
     if isempty(solver.solution.metadata)
         return "OPTIMIZE_NOT_CALLED"
     else
-        return solver.solution.metadata["status"]
+        let status = qci_response_field(solver.solution.metadata, "status")
+            return status isa AbstractString ? String(status) : QCI_UNKNOWN_STATUS
+        end
     end
 end
 
@@ -83,21 +90,29 @@ function MOI.get(solver::Optimizer{T}, attr::MOI.ObjectiveValue) where {T}
     return solver.solution.samples[attr.result_index].value
 end
 
-# [ ] SolveTimeSec
-function qci_get_elapsed_time(status)
-    run_key = only(filter(key -> startswith(key, "running_at_"), keys(status)))
-    end_key = only(filter(key -> startswith(key, "completed_at_"), keys(status)))
+# [x] SolveTimeSec
+@doc raw"""
+    qci_get_elapsed_time(job_status)
 
-    run_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[run_key])))
-    end_ts = parse(Dates.DateTime, only(match(r"^(.*)Z$", status[end_key])))
-
-    return Dates.value(end_ts - run_ts) / 1000
+Seconds the provider spent running a job, from its `running_at_` to its
+`completed_at_` job-status timestamp, or `NaN` when the timestamps are missing or
+unusable. `NaN` is the same value `MOI.SolveTimeSec` reports for a job that did
+not complete, so a completed job whose timing the provider did not report leaves
+the rest of the solution readable.
+"""
+function qci_get_elapsed_time(job_status)
+    return something(
+        qci_elapsed_seconds(job_status, "running_at_", "completed_at_"),
+        NaN,
+    )
 end
 
 function MOI.get(solver::Optimizer{T}, ::MOI.SolveTimeSec) where {T}
     # "total elapsed solution time (in seconds) as reported by the optimizer"
     if MOI.get(solver, MOI.TerminationStatus()) === MOI.LOCALLY_SOLVED # means it was completed successfully
-        return qci_get_elapsed_time(solver.solution.metadata["job_info"]["job_status"])
+        return qci_get_elapsed_time(
+            qci_response_field(solver.solution.metadata, "job_info", "job_status"),
+        )
     else
         return NaN
     end
@@ -129,3 +144,34 @@ function MOI.get(solver::Optimizer{T}, attr::ResultMultiplicity) where {T}
 end
 
 MOI.is_set_by_optimize(::ResultMultiplicity) = true
+
+@doc raw"""
+    ProviderMetadata()
+
+Optimizer attribute holding the provider metadata preserved from the QCI job
+response of the last solve, for both DIRAC-1 and DIRAC-3.
+
+`MOI.get(solver, QCIOpt.ProviderMetadata())` returns the normalized dictionary
+documented on [`qci_provider_metadata`](@ref): job identity, provider status,
+job-status timing, result and problem file ids, the provider's job-error
+diagnostic, and the job response itself under `"response"`. Every key is always
+present and is `nothing` when the response does not carry it, including before
+`optimize!` has been called.
+
+The provider status is also available as `MOI.RawStatusString`, and the running
+time as `MOI.SolveTimeSec`; this attribute is the only access to the remaining
+fields.
+"""
+struct ProviderMetadata <: MOI.AbstractOptimizerAttribute end
+
+function MOI.get(solver::Optimizer{T}, ::ProviderMetadata) where {T}
+    return qci_provider_metadata(solver.solution.metadata)
+end
+
+MOI.is_set_by_optimize(::ProviderMetadata) = true
+
+# A `CachingOptimizer` — what `JuMP.Model(QCIOpt.Optimizer)` wraps this in —
+# maps every optimizer-attribute value it returns through `map_indices`, which
+# has no method for a `Dict{String,Any}`. The value carries no MOI indices, so
+# it passes through unchanged, as `MOI.RawOptimizerAttribute` values do.
+MOIU.map_indices(::Any, ::ProviderMetadata, value) = value

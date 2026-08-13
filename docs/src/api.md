@@ -46,6 +46,79 @@ than exposing it as a raw attribute. The devices do not support
 construction, and job processing while leaving solver results and provider
 metadata unchanged.
 
+## Provider metadata
+
+A solve keeps the QCI job response as the solution metadata verbatim, for both
+DIRAC-1 and DIRAC-3. [`QCIOpt.ProviderMetadata`](@ref) reads a normalized view of
+it back out:
+
+```julia
+using JuMP, QCIOpt
+
+model = Model(QCIOpt.Optimizer)
+# ... build and optimize the model ...
+
+metadata = get_attribute(model, QCIOpt.ProviderMetadata())
+
+metadata["job_id"]         # provider job identifier
+metadata["run_time_sec"]   # same value as MOI.SolveTimeSec
+metadata["error"]          # provider job-error diagnostic, or nothing
+metadata["response"]       # the job response itself
+```
+
+Every key listed on [`QCIOpt.qci_provider_metadata`](@ref) is always present and
+is `nothing` when the response does not carry it, so reading one field never
+depends on another being reported. The provider status is also
+`MOI.RawStatusString`, and `"run_time_sec"` is `MOI.SolveTimeSec`. Neither fails
+on a partial response: a job that did not complete keeps its own provider status
+and reports `NaN` for the time, and stored metadata carrying no status string at
+all reports `"UNKNOWN"`.
+
+### Relationship to the QUBODrivers sampler metadata
+
+`QCIOpt.DiracSampler` publishes the same provider information under the
+standardized [QUBODrivers](https://github.com/JuliaQUBO/QUBODrivers.jl) sampler
+keys, which a benchmark harness reads from the `SampleSet`. The sampler derives
+its status, job-id, file-id, and device-usage entries from
+[`QCIOpt.qci_provider_metadata`](@ref), so those cannot drift from the table
+above. The timing rows are a documented correspondence rather than shared code,
+because the two sides read timing from different provider sources — see the note
+after the table:
+
+| `ProviderMetadata` key | `DiracSampler` sample-set metadata          |
+|:-----------------------|:--------------------------------------------|
+| `"status"`             | `metadata["status"]`                        |
+| `"job_id"`             | `metadata["backend"]["job_id"]`             |
+| `"result_file_id"`     | `metadata["backend"]["result_file_id"]`     |
+| `"problem_file_id"`    | `metadata["backend"]["problem_file_id"]`    |
+| `"run_time_sec"`       | (job-status timing; the sampler reports provider metrics under `metadata["time"]`) |
+| `"queue_time_sec"`     | (job-status timing; compare `metadata["time"]["provider_queue"]`) |
+| `"total_time_sec"`     | (job-status timing; compare `metadata["time"]["provider_wall"]`) |
+| `"device_usage_sec"`   | `metadata["time"]["device_usage"]`           |
+| `"error"`              | (raw response under `metadata["provider"]`)  |
+| `"response"`           | `metadata["provider"]["job_info"]` and siblings |
+
+The sampler additionally queries the provider's job-metrics endpoint, which the
+MOI path does not call: its `"time"` entries are nanosecond metrics reported by
+that endpoint, while the durations above are derived from the job-status
+timestamps that every job response carries. The sampler also records
+QUBODrivers' own algorithm, backend, and read-count fields, which describe the
+sampler contract rather than the provider.
+
+```@docs
+QCIOpt.ProviderMetadata
+QCIOpt.qci_provider_metadata
+QCIOpt.qci_response_field
+QCIOpt.qci_problem_file_id
+QCIOpt.qci_provider_error
+QCIOpt.qci_get_elapsed_time
+QCIOpt.qci_elapsed_seconds
+QCIOpt.qci_status_timestamp
+QCIOpt.qci_parse_timestamp
+QCIOpt.qci_parse_results
+QCIOpt.qci_provider_results
+```
+
 ## DIRAC-3 variable transformation
 
 DIRAC-3 samples each variable over consecutive integer levels starting at zero.

@@ -18,19 +18,8 @@ function qci_client_bridge_version()
     end
 end
 
-function _get_path(value, path::Tuple)
-    current = value
-
-    for key in path
-        if current isa AbstractDict && haskey(current, key)
-            current = current[key]
-        else
-            return nothing
-        end
-    end
-
-    return current
-end
+# Shared with the MOI solve path so both read provider responses the same way.
+_get_path(value, path::Tuple) = QCIOpt.qci_response_field(value, path...)
 
 function _backend_value(result, key::String, default = nothing)
     if result isa AbstractDict
@@ -275,16 +264,17 @@ function metadata_from_response(
     num_samples::Integer,
     device_type::AbstractString = DEFAULT_DEVICE_TYPE,
 )
-    status = response["status"]
+    # Read every field this sampler shares with the MOI solve path through the
+    # same normalizer, so the two published views cannot disagree about them.
+    # The timing entries below are deliberately not among them: they come from
+    # the provider's job-metrics endpoint, which the MOI path never calls.
+    provider = QCIOpt.qci_provider_metadata(response)
+
+    status = provider["status"]
     job_info = response["job_info"]
     job_status = get(job_info, "job_status", Dict{String,Any}())
     job_result = get(job_info, "job_result", Dict{String,Any}())
     job_submission = get(job_info, "job_submission", Dict{String,Any}())
-    qubo_config = _get_path(
-        job_info,
-        ("job_submission", "problem_config", "quadratic_unconstrained_binary_optimization"),
-    )
-    problem_file_id = qubo_config isa AbstractDict ? get(qubo_config, "qubo_file_id", nothing) : nothing
 
     metadata = QUBODrivers._sampler_metadata(
         origin = "QCI Dirac @ QCIOpt client bridge",
@@ -301,9 +291,9 @@ function metadata_from_response(
     )
 
     metadata["backend"]["device"] = device_type
-    metadata["backend"]["job_id"] = get(job_info, "job_id", nothing)
-    metadata["backend"]["result_file_id"] = get(job_result, "file_id", nothing)
-    metadata["backend"]["problem_file_id"] = problem_file_id
+    metadata["backend"]["job_id"] = provider["job_id"]
+    metadata["backend"]["result_file_id"] = provider["result_file_id"]
+    metadata["backend"]["problem_file_id"] = provider["problem_file_id"]
     metadata["time"] = Dict{String,Any}(
         "effective" => effective_time(response, metrics; device_type),
         "provider_wall" => _duration_seconds(
@@ -321,7 +311,7 @@ function metadata_from_response(
             ("job_metrics", "time_ns", "wall", "processing", "start"),
             ("job_metrics", "time_ns", "wall", "processing", "end"),
         ),
-        "device_usage" => get(job_result, "device_usage_s", nothing),
+        "device_usage" => provider["device_usage_sec"],
     )
     metadata["provider"] = Dict{String,Any}(
         "job_info" => job_info,

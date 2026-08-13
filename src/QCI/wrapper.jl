@@ -1,6 +1,7 @@
 include("error.jl")
 include("client.jl")
 include("device.jl")
+include("metadata.jl")
 include("data.jl")
 include("jobs.jl")
 

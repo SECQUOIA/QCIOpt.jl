@@ -15,6 +15,7 @@ import MathOptInterface as MOI
     include("qubodrivers_sampler.jl")
     include("review_regressions.jl")
     include("moi_result_semantics.jl")
+    include("provider_metadata.jl")
     include("dirac3_bounds.jl")
     include("moi_capabilities.jl")
 
