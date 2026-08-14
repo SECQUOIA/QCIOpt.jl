@@ -57,6 +57,8 @@ function MOI.get(solver::Optimizer{T}, attr::MOI.RawOptimizerAttribute) where {T
     return solver.attributes[attr.name]
 end
 
+# DIRAC-3 parameter ranges follow QCI's provider guide:
+# https://quantumcomputinginc.com/learn/module/introduction-to-dirac-3/dirac-3-developer-beginner-guide
 function validate_raw_optimizer_attribute(name::String, value)
     if name == "num_samples"
         if value isa Bool || !(value isa Integer) || !(1 <= value <= 100)
@@ -72,6 +74,20 @@ function validate_raw_optimizer_attribute(name::String, value)
             throw(
                 ArgumentError(
                     "raw optimizer attribute 'relaxation_schedule' must be an integer in 1:4; " *
+                    "received $(repr(value))",
+                ),
+            )
+        end
+    elseif name == "sum_constraint"
+        if !isnothing(value) &&
+           (value isa Bool ||
+            !(value isa Real) ||
+            !isfinite(value) ||
+            !(1 <= value <= 10_000))
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'sum_constraint' must be a finite real " *
+                    "number in [1, 10000], or `nothing` to select the integer job; " *
                     "received $(repr(value))",
                 ),
             )

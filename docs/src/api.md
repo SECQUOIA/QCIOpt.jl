@@ -28,19 +28,25 @@ device updates `MOI.supports` and `MOI.supports_constraint` immediately.
 | `MIN_SENSE` / `MAX_SENSE` | yes | yes |
 | `FEASIBILITY_SENSE` | no | no |
 
-DIRAC-1 accepts binary unconstrained quadratic models. DIRAC-3's bound
-constraint declarations describe finite integer domains: each non-fixed
-variable must also be `Integer` or `ZeroOne`; `EqualTo` and a zero-width
-`Interval` represent a fixed single level. General continuous boxes and
-functional constraints are not supported.
+DIRAC-1 accepts binary unconstrained quadratic models. DIRAC-3 has two distinct
+domain contracts. Without `"sum_constraint"`, bound declarations describe
+finite integer domains: each non-fixed variable must also be `Integer` or
+`ZeroOne`; `EqualTo` and a zero-width `Interval` represent a fixed single level.
+With `"sum_constraint" = R`, every variable must instead be continuous, have
+lower bound zero, and have no upper bound; the native domain is the simplex
+`xᵢ ≥ 0, Σxᵢ = R`. Arbitrary continuous boxes, fixed/continuous mixtures, and
+integer/continuous mixtures are not supported. Scalar and vector functional
+constraints are not supported.
 
 Both devices support `MOI.ObjectiveSense` for `MIN_SENSE` and `MAX_SENSE`,
 [`QCIOpt.DeviceType`](@ref), `MOI.Silent`, and the raw optimizer attributes
 `"api_token"`, `"device_type"`, `"file_name"`, `"num_samples"`, `"job_name"`,
 `"job_tags"`, and `"silent"`. DIRAC-3 additionally supports
-`"relaxation_schedule"`. Job parameters use the same names, ranges, and defaults
-documented in the README; DIRAC-3 derives `num_levels` from the model rather
-than exposing it as a raw attribute. The devices do not support
+`"relaxation_schedule"` and `"sum_constraint"`. Job parameters use the same
+names, ranges, and defaults documented in the README; DIRAC-3 derives
+`num_levels` from integer model domains and requires `sum_constraint` for a
+continuous simplex rather than exposing either device-domain representation as
+an arbitrary pass-through. The devices do not support
 `MOI.TimeLimitSec`, `MOI.NumberOfThreads`, or arbitrary raw attributes.
 `MOI.Silent = true` suppresses console output from file upload, job-body
 construction, and job processing while leaving solver results and provider
@@ -121,13 +127,23 @@ QCIOpt.qci_provider_results
 
 ## DIRAC-3 variable transformation
 
-DIRAC-3 samples each variable over consecutive integer levels starting at zero.
-[`QCIOpt.variable_domains`](@ref) states the full contract that maps a bounded
-integer JuMP/MOI model onto those levels and back; the remaining functions
-implement its individual steps.
+DIRAC-3 integer jobs sample each variable over consecutive levels starting at
+zero. [`QCIOpt.variable_domains`](@ref) states the full contract that maps a
+bounded integer JuMP/MOI model onto those levels and back.
+
+Continuous jobs are not a bounds transformation. Setting the raw optimizer
+attribute `"sum_constraint" = R` selects `sample-hamiltonian` and exposes the
+device's native simplex directly: every model variable must be declared
+continuous with `xᵢ >= 0` and no upper bound, and the device samples
+`Σxᵢ = R`. Provider samples already use the model coordinates, so result
+reconstruction does not apply an inverse scaling.
+[`QCIOpt.continuous_sum_constraint`](@ref) states and validates this separate
+contract; [`QCIOpt.dirac3_job_type`](@ref) rejects mixed domains.
 
 ```@docs
 QCIOpt.variable_domains
+QCIOpt.continuous_sum_constraint
+QCIOpt.dirac3_job_type
 QCIOpt.qci_build_poly_request
 QCIOpt.rescale_variables
 QCIOpt.get_levels

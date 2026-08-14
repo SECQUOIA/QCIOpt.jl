@@ -134,6 +134,29 @@
         @test req.file["file_name"] == ""
     end
 
+    @testset "Declared integer model arity survives sparse objectives" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+        for xi in x
+            MOI.add_constraint(model, xi, MOI.Integer())
+            MOI.add_constraint(model, xi, MOI.Interval(0.0, 3.0))
+        end
+
+        f = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x[1])], 0.0)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        (; solver, device, vars) = load(model)
+        req = request(solver, device, vars)
+        config = req.file["file_config"]["polynomial"]
+
+        @test req.job_type == "sample-hamiltonian-integer"
+        @test req.num_levels == [4, 4]
+        @test req.sum_constraint === nothing
+        @test config["num_variables"] == 2
+        @test config["data"] == [Dict{String,Any}("idx" => [1], "val" => 1.0)]
+    end
+
     @testset "Returned sample and objective reconstruction" begin
         # Provider points on the level grid, deliberately not best-first, with
         # objective values computed by hand:
@@ -248,11 +271,6 @@
     @testset "Unsupported and invalid domains fail with actionable errors" begin
         # (name, model, expected message fragment)
         cases = [
-            (
-                "continuous variable",
-                bounded_model(; integer = false),
-                "samples integer-valued variables only",
-            ),
             (
                 "missing bounds",
                 bounded_model(; bounded = false),
@@ -405,7 +423,8 @@
             end
 
             @test err isa ErrorException
-            @test occursin("samples integer-valued variables only", sprint(showerror, err))
+            @test occursin("require the raw optimizer attribute", sprint(showerror, err))
+            @test occursin("sum_constraint", sprint(showerror, err))
         end
     end
 

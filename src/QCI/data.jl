@@ -84,13 +84,29 @@ function qci_poly_data(indices::AbstractVector{V}, values::AbstractVector{T}) wh
     )
 end
 
-function qci_data_file(indices, values; file_name::Union{AbstractString,Nothing} = nothing)
+function qci_data_file(
+    indices,
+    values;
+    file_name::Union{AbstractString,Nothing} = nothing,
+    num_variables::Union{Integer,Nothing} = nothing,
+)
     poly = qci_poly_data(indices, values)
+    declared_num_variables = something(num_variables, poly.num_variables)
+    if declared_num_variables < poly.num_variables
+        throw(
+            ArgumentError(
+                "declared num_variables = $(declared_num_variables) is below the " *
+                "highest variable index present in the polynomial " *
+                "($(poly.num_variables))",
+            ),
+        )
+    end
+
     file = Dict{String,Any}(
         "file_name"   => something(file_name, ""),
         "file_config" => Dict{String,Any}(
             "polynomial" => Dict{String,Any}(
-                "num_variables" => poly.num_variables,
+                "num_variables" => declared_num_variables,
                 "min_degree"    => poly.min_degree,
                 "max_degree"    => poly.max_degree,
                 "data"          => poly.data,
@@ -107,7 +123,12 @@ function qci_data_file(indices, values; file_name::Union{AbstractString,Nothing}
     return file
 end
 
-function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::Union{AbstractString,Nothing} = nothing) where {_V,_M,T}
+function qci_data_file(
+    varmap::Function,
+    p::DP.Polynomial{_V,_M,T};
+    file_name::Union{AbstractString,Nothing} = nothing,
+    num_variables::Union{Integer,Nothing} = nothing,
+) where {_V,_M,T}
     indices = Vector{Int}[]
     values  = T[]
     degree  = DP.maxdegree(p)
@@ -136,7 +157,7 @@ function qci_data_file(varmap::Function, p::DP.Polynomial{_V,_M,T}; file_name::U
         push!(values, val)
     end
 
-    return qci_data_file(indices, values; file_name)
+    return qci_data_file(indices, values; file_name, num_variables)
 end
 
 function qci_data_file(p::DP.Polynomial{T}; file_name::Union{AbstractString,Nothing} = nothing) where {T}

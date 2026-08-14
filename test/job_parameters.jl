@@ -44,11 +44,18 @@ end
             if device_type == "dirac-3"
                 @test MOI.supports(optimizer, relaxation_schedule)
                 @test MOI.get(optimizer, relaxation_schedule) == 1
+                sum_constraint = MOI.RawOptimizerAttribute("sum_constraint")
+                @test MOI.supports(optimizer, sum_constraint)
+                @test MOI.get(optimizer, sum_constraint) === nothing
             else
                 @test !MOI.supports(optimizer, relaxation_schedule)
                 @test_throws MOI.UnsupportedAttribute MOI.get(
                     optimizer,
                     relaxation_schedule,
+                )
+                @test !MOI.supports(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("sum_constraint"),
                 )
             end
         end
@@ -164,11 +171,48 @@ end
                     )
                     @test occursin("1:4", sprint(showerror, error))
                 end
+
+                sum_constraint = MOI.RawOptimizerAttribute("sum_constraint")
+                for boundary in (1, 10_000, 2.5)
+                    MOI.set(optimizer, sum_constraint, boundary)
+                    @test MOI.get(optimizer, sum_constraint) == boundary
+                end
+
+                MOI.set(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("num_samples"),
+                    42,
+                )
+                clear_error = raw_attribute_error(
+                    optimizer,
+                    "sum_constraint",
+                    nothing,
+                )
+                @test clear_error === nothing
+                if isnothing(clear_error)
+                    @test MOI.get(optimizer, sum_constraint) === nothing
+                    @test MOI.get(
+                        optimizer,
+                        MOI.RawOptimizerAttribute("num_samples"),
+                    ) == 42
+                end
+
+                for value in (0, 10_001, Inf, NaN, true, "2")
+                    error = raw_attribute_error(optimizer, "sum_constraint", value)
+                    @test error isa ArgumentError
+                    @test occursin("sum_constraint", sprint(showerror, error))
+                    @test occursin("[1, 10000]", sprint(showerror, error))
+                end
             else
                 @test_throws MOI.UnsupportedAttribute MOI.set(
                     optimizer,
                     relaxation_schedule,
                     1,
+                )
+                @test_throws MOI.UnsupportedAttribute MOI.set(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("sum_constraint"),
+                    2,
                 )
             end
 

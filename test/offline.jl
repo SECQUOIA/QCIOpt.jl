@@ -54,6 +54,16 @@
             Dict{String,Any}("idx" => [1, 0], "val" => 1.5),
             Dict{String,Any}("idx" => [1, 2], "val" => -2.0),
         ]
+
+        err = try
+            QCIOpt.qci_data_file([[2]], [1.0]; num_variables = 1)
+            nothing
+        catch err
+            err
+        end
+        @test err isa ArgumentError
+        @test occursin("declared num_variables = 1", sprint(showerror, err))
+        @test occursin("highest variable index", sprint(showerror, err))
     end
 end
 

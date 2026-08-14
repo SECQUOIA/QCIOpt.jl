@@ -84,6 +84,31 @@
             ),
         )
 
+    continuous_body = QCIOpt.qci_build_poly_job_body(
+        "continuous-polynomial-file";
+        api_token = "offline-token",
+        device_type = "dirac-3",
+        job_type = "sample-hamiltonian",
+        sum_constraint = 2.5,
+        relaxation_schedule = 3,
+        num_samples = 8,
+    )
+    continuous_submission = continuous_body["job_submission"]
+
+    @test continuous_submission["problem_config"] ==
+        Dict{String,Any}(
+            "normalized_qudit_hamiltonian_optimization" =>
+                Dict{String,Any}("polynomial_file_id" => "continuous-polynomial-file"),
+        )
+    @test continuous_submission["device_config"] ==
+        Dict{String,Any}(
+            "dirac-3_normalized_qudit" => Dict{String,Any}(
+                "num_samples" => 8,
+                "sum_constraint" => 2.5,
+                "relaxation_schedule" => 3,
+            ),
+        )
+
     unauthorized = QCIOpt.qcic.requests.Response()
     unauthorized.status_code = 401
     unauthorized.reason = "Unauthorized"
