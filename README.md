@@ -92,8 +92,8 @@ attribute names. Supported job parameters depend on the selected device:
 | Attribute | Type | Default | Devices | Provider field |
 |:----------|:-----|:--------|:--------|:---------------|
 | `"num_samples"` | integer in `1:100` | `10` | DIRAC-1, DIRAC-3 | device configuration |
-| `"relaxation_schedule"` | integer in `1:4` | `1` | DIRAC-3 | device configuration |
-| `"sum_constraint"` | real in `[1, 10000]` | unset | DIRAC-3 continuous | device configuration |
+| `"relaxation_schedule"` | integer in `1:4` | `1` | DIRAC-3 | [QCI DIRAC-3 configuration][qci-dirac3-guide] |
+| `"sum_constraint"` | real in `[1, 10000]` or `nothing` | unset | DIRAC-3 continuous | [QCI DIRAC-3 configuration][qci-dirac3-guide] |
 | `"job_name"` | string | `""` | DIRAC-1, DIRAC-3 | job submission |
 | `"job_tags"` | vector of strings | `String[]` | DIRAC-1, DIRAC-3 | job submission |
 
@@ -103,6 +103,10 @@ domains; it is not a user-settable raw attribute. For a continuous model,
 Declare every variable with lower bound zero and no upper bound; arbitrary boxes,
 fixed variables, and mixed integer-continuous models cannot be represented by
 this job type and fail before contacting QCI.
+Set `sum_constraint` back to `nothing` to reuse the optimizer for an integer job
+without resetting its other job parameters.
+
+[qci-dirac3-guide]: https://quantumcomputinginc.com/learn/module/introduction-to-dirac-3/dirac-3-developer-beginner-guide
 
 ```julia
 set_attribute(model, "num_samples", 10)

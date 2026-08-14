@@ -178,6 +178,25 @@ end
                     @test MOI.get(optimizer, sum_constraint) == boundary
                 end
 
+                MOI.set(
+                    optimizer,
+                    MOI.RawOptimizerAttribute("num_samples"),
+                    42,
+                )
+                clear_error = raw_attribute_error(
+                    optimizer,
+                    "sum_constraint",
+                    nothing,
+                )
+                @test clear_error === nothing
+                if isnothing(clear_error)
+                    @test MOI.get(optimizer, sum_constraint) === nothing
+                    @test MOI.get(
+                        optimizer,
+                        MOI.RawOptimizerAttribute("num_samples"),
+                    ) == 42
+                end
+
                 for value in (0, 10_001, Inf, NaN, true, "2")
                     error = raw_attribute_error(optimizer, "sum_constraint", value)
                     @test error isa ArgumentError

@@ -92,7 +92,15 @@ function qci_data_file(
 )
     poly = qci_poly_data(indices, values)
     declared_num_variables = something(num_variables, poly.num_variables)
-    @assert declared_num_variables >= poly.num_variables
+    if declared_num_variables < poly.num_variables
+        throw(
+            ArgumentError(
+                "declared num_variables = $(declared_num_variables) is below the " *
+                "highest variable index present in the polynomial " *
+                "($(poly.num_variables))",
+            ),
+        )
+    end
 
     file = Dict{String,Any}(
         "file_name"   => something(file_name, ""),

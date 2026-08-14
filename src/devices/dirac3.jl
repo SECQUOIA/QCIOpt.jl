@@ -549,6 +549,8 @@ function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, sa
         # read the same lower bound.
         variable_domains(solver, device, vars)
     else
+        # Revalidate the simplex contract for direct callers of this result
+        # helper and if model or optimizer state changed after request creation.
         continuous_sum_constraint(solver, device, vars)
         nothing
     end

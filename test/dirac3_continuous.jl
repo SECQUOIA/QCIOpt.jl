@@ -151,6 +151,38 @@
         @test MOI.get(solver, MOI.ObjectiveValue(2)) == 2.0
     end
 
+    @testset "Clearing sum_constraint restores the integer job" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variable(model)
+        MOI.add_constraint(model, x, MOI.Integer())
+        MOI.add_constraint(model, x, MOI.Interval(0.0, 3.0))
+
+        f = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        solver = QCIOpt.Optimizer()
+        sum_constraint = MOI.RawOptimizerAttribute("sum_constraint")
+        MOI.set(solver, sum_constraint, 2.0)
+        clear_error = try
+            MOI.set(solver, sum_constraint, nothing)
+            nothing
+        catch error
+            error
+        end
+        @test clear_error === nothing
+
+        if isnothing(clear_error)
+            device = solver.device
+            vars = QCIOpt.qci_load!(solver, device, model)
+            request = QCIOpt.qci_build_poly_request(solver, device, vars)
+
+            @test request.job_type == "sample-hamiltonian-integer"
+            @test request.num_levels == [4]
+            @test request.sum_constraint === nothing
+        end
+    end
+
     @testset "Returned samples already use model coordinates" begin
         for sense in (MOI.MIN_SENSE, MOI.MAX_SENSE)
             model = continuous_model(; sense)
