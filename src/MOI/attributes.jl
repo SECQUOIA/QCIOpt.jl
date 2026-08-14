@@ -76,6 +76,18 @@ function validate_raw_optimizer_attribute(name::String, value)
                 ),
             )
         end
+    elseif name == "sum_constraint"
+        if value isa Bool ||
+           !(value isa Real) ||
+           !isfinite(value) ||
+           !(1 <= value <= 10_000)
+            throw(
+                ArgumentError(
+                    "raw optimizer attribute 'sum_constraint' must be a finite real " *
+                    "number in [1, 10000]; received $(repr(value))",
+                ),
+            )
+        end
     elseif name == "job_name"
         value isa AbstractString || throw(
             ArgumentError(

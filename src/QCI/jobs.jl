@@ -8,9 +8,11 @@ function qci_upload_file(file; url = QCI_URL, api_token = qci_default_token(), s
 end
 
 @doc raw"""
-    qci_build_poly_job_body(file_id; device_type, job_type, num_levels, kwargs...)
+    qci_build_poly_job_body(file_id; device_type, job_type, num_levels, sum_constraint, kwargs...)
 
-Build a QCI integer-polynomial job body from explicit client and job arguments.
+Build a QCI polynomial job body from explicit client and job arguments.
+`num_levels` configures an integer-qudit job, while `sum_constraint` configures
+a continuous normalized-qudit job.
 """
 function qci_build_poly_job_body(
     file_id::AbstractString;
@@ -22,17 +24,20 @@ function qci_build_poly_job_body(
     device_type::AbstractString,
     job_type::AbstractString,
     num_samples::Integer         = 100,
-    num_levels::AbstractVector{U},
+    num_levels::Union{AbstractVector{<:Integer},Nothing} = nothing,
+    sum_constraint::Union{Real,Nothing} = nothing,
     relaxation_schedule::Integer = 1,
     job_name::AbstractString = "",
     job_tags::AbstractVector{<:AbstractString} = String[],
-) where {U<:Integer}
+)
     job_params = Dict{String,Any}(
         "device_type"         => device_type,
         "num_samples"         => num_samples,
-        "num_levels"          => num_levels,
         "relaxation_schedule" => relaxation_schedule,
     )
+
+    isnothing(num_levels) || (job_params["num_levels"] = num_levels)
+    isnothing(sum_constraint) || (job_params["sum_constraint"] = sum_constraint)
 
     return qci_client(; url, api_token, silent) do client
         client.build_job_body(;

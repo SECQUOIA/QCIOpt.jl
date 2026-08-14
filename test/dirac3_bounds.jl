@@ -249,11 +249,6 @@
         # (name, model, expected message fragment)
         cases = [
             (
-                "continuous variable",
-                bounded_model(; integer = false),
-                "samples integer-valued variables only",
-            ),
-            (
                 "missing bounds",
                 bounded_model(; bounded = false),
                 "is missing a lower bound",
@@ -405,7 +400,8 @@
             end
 
             @test err isa ErrorException
-            @test occursin("samples integer-valued variables only", sprint(showerror, err))
+            @test occursin("require the raw optimizer attribute", sprint(showerror, err))
+            @test occursin("sum_constraint", sprint(showerror, err))
         end
     end
 

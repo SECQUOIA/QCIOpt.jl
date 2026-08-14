@@ -178,6 +178,63 @@ def test_client_rejects_unsupported_constructor_keywords(keyword: str) -> None:
         )
 
 
+def test_build_continuous_dirac3_polynomial_job_body() -> None:
+    client = client_with_session(FakeSession({}))
+
+    body = client.build_job_body(
+        job_type="sample-hamiltonian",
+        polynomial_file_id="continuous-polynomial-file",
+        job_params={
+            "device_type": "dirac-3",
+            "num_samples": 8,
+            "relaxation_schedule": 3,
+            "sum_constraint": 2.5,
+        },
+        job_name="continuous-simplex",
+        job_tags=["offline"],
+    )
+
+    assert body == {
+        "job_submission": {
+            "job_name": "continuous-simplex",
+            "job_tags": ["offline"],
+            "problem_config": {
+                "normalized_qudit_hamiltonian_optimization": {
+                    "polynomial_file_id": "continuous-polynomial-file"
+                }
+            },
+            "device_config": {
+                "dirac-3_normalized_qudit": {
+                    "num_samples": 8,
+                    "relaxation_schedule": 3,
+                    "sum_constraint": 2.5,
+                }
+            },
+        }
+    }
+
+
+def test_continuous_and_integer_dirac3_variants_are_not_interchangeable() -> None:
+    client = client_with_session(FakeSession({}))
+
+    with pytest.raises(ValueError, match="sample-hamiltonian is only supported"):
+        client.build_job_body(
+            job_type="sample-hamiltonian",
+            polynomial_file_id="polynomial-file",
+            job_params={"device_type": "dirac-3_qudit", "sum_constraint": 2},
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="sample-hamiltonian-integer is only supported",
+    ):
+        client.build_job_body(
+            job_type="sample-hamiltonian-integer",
+            polynomial_file_id="polynomial-file",
+            job_params={"device_type": "dirac-3_normalized_qudit", "num_levels": [2]},
+        )
+
+
 def test_job_body_rejects_unsupported_file_keywords() -> None:
     client = client_with_session(FakeSession({}))
 

@@ -224,6 +224,41 @@ if QCIOpt.__auth__()
                 @test first(objectives) ≈ best
             end
         end
+
+        @testset "DIRAC-3 continuous simplex known optimum" begin
+            # Independently, minimizing
+            #   -100x₁ + x₂
+            # over x >= 0 and x₁ + x₂ = 2 has the unique optimum
+            # x = (2, 0), f = -200. The large coefficient separation makes
+            # this a stable wiring test despite stochastic sampling, while
+            # retaining both variables in the submitted polynomial.
+            let model = Model(QCIOpt.Optimizer)
+                @variable(model, x[1:2] >= 0)
+                @objective(model, Min, -100 * x[1] + x[2])
+
+                set_attribute(model, QCIOpt.DeviceType(), "dirac-3")
+                set_attribute(model, "sum_constraint", 2.0)
+                set_attribute(model, "num_samples", 10)
+
+                optimize!(model)
+
+                @test result_count(model) >= 1
+
+                objectives = [objective_value(model; result = i) for i = 1:result_count(model)]
+                @test issorted(objectives)
+
+                for i = 1:result_count(model)
+                    point = value.(x; result = i)
+                    @test all(point .>= -1e-5)
+                    @test sum(point) ≈ 2.0 atol = 1e-3
+                    @test objective_value(model; result = i) ≈ -100 * point[1] + point[2]
+                end
+
+                best_point = value.(x; result = 1)
+                @test best_point ≈ [2.0, 0.0] atol = 0.1
+                @test first(objectives) <= -195.0
+            end
+        end
     end
 else
     @info "Skipping live QCI service smoke tests because QCI_TOKEN is not set."

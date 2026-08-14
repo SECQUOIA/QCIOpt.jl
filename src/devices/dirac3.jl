@@ -47,6 +47,7 @@ QCI_DEVICES["dirac-3"] = DIRAC_3
 const DIRAC_3_ATTRIBUTES = Set{String}([
     "num_samples",
     "relaxation_schedule",
+    "sum_constraint",
 ])
 
 qci_default_attributes(::Type{DIRAC_3{T}}) where {T} = Dict{String,Any}(
@@ -54,6 +55,7 @@ qci_default_attributes(::Type{DIRAC_3{T}}) where {T} = Dict{String,Any}(
     "device_type"         => "dirac-3",
     "num_samples"         => 10,
     "relaxation_schedule" => 1,
+    "sum_constraint"      => nothing,
 )
 
 qci_supports_attribute(::DIRAC_3, attr::AbstractString) = attr ∈ DIRAC_3_ATTRIBUTES
@@ -80,8 +82,10 @@ the negated polynomial is stored and submitted; original objective values are
 restored in [`readjust_poly_values`](@ref).
 
 Returns the vector of `DynamicPolynomials` variables in model variable order.
-The variable domains are validated later, by [`variable_domains`](@ref), which
-`qci_optimize!` calls before any network access.
+The variable domain is validated later by `qci_build_poly_request`, which
+selects either the integer contract in [`variable_domains`](@ref) or the
+continuous simplex contract in [`continuous_sum_constraint`](@ref) before any
+network access.
 """
 function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLike) where {T}
     n = MOI.get(model, MOI.NumberOfVariables())
@@ -111,27 +115,40 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLik
 end
 
 @doc raw"""
-    qci_build_poly_job_body(solver::Optimizer, device::DIRAC_3; file_id, num_levels, api_token, silent)
+    qci_build_poly_job_body(solver::Optimizer, device::DIRAC_3; file_id, num_levels, sum_constraint, api_token, silent)
 
-Build a DIRAC-3 integer-polynomial job body from the validated raw optimizer
-attributes stored on `solver`. This is the network-free caller-to-client
-boundary used by `qci_optimize!`.
+Build a DIRAC-3 polynomial job body from the validated raw optimizer attributes
+stored on `solver`. Exactly one of `num_levels` (integer-qudit mode) and
+`sum_constraint` (continuous normalized-qudit mode) is supplied. This is the
+network-free caller-to-client boundary used by `qci_optimize!`.
 """
 function qci_build_poly_job_body(
     solver::Optimizer{T},
     ::DIRAC_3{T};
     file_id::AbstractString,
-    num_levels::AbstractVector{<:Integer},
+    num_levels::Union{AbstractVector{<:Integer},Nothing} = nothing,
+    sum_constraint::Union{Real,Nothing} = nothing,
     api_token::AbstractString = qci_default_token(),
     silent::Bool = false,
 ) where {T}
+    if isnothing(num_levels) == isnothing(sum_constraint)
+        error(
+            "A DIRAC-3 polynomial job requires exactly one domain parameter: " *
+            "`num_levels` for `sample-hamiltonian-integer`, or `sum_constraint` " *
+            "for `sample-hamiltonian`.",
+        )
+    end
+
+    job_type = isnothing(num_levels) ? "sample-hamiltonian" : "sample-hamiltonian-integer"
+
     return qci_build_poly_job_body(
         file_id;
         api_token,
         silent,
         device_type = "dirac-3",
-        job_type = "sample-hamiltonian-integer",
+        job_type,
         num_levels,
+        sum_constraint,
         num_samples = MOI.get(solver, MOI.RawOptimizerAttribute("num_samples")),
         relaxation_schedule = MOI.get(
             solver,
@@ -157,7 +174,9 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
     # must report itself as such, not as a missing-credentials error.
     request = qci_build_poly_request(solver, device, x; file_name)
 
-    assert_level_budget(request.num_levels, qci_max_level(device; api_token, silent))
+    if request.job_type == "sample-hamiltonian-integer"
+        assert_level_budget(request.num_levels, qci_max_level(device; api_token, silent))
+    end
 
     file_id  = qci_upload_file(request.file; api_token, silent)
     job_body = qci_build_poly_job_body(
@@ -165,6 +184,7 @@ function qci_optimize!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.Mode
         device;
         file_id,
         num_levels = request.num_levels,
+        sum_constraint = request.sum_constraint,
         api_token,
         silent,
     )
@@ -224,17 +244,21 @@ end
     qci_build_poly_request(solver::Optimizer{T}, device::DIRAC_3{T}, vars; file_name = nothing) where {T}
 
 Build everything a DIRAC-3 submission needs from a loaded model, without
-touching the network: the shifted polynomial, the polynomial file body, and the
-per-variable level counts. This is the whole transformation half of
+touching the network. Integer models produce a shifted polynomial and
+per-variable level counts; continuous models produce the unchanged polynomial
+and native simplex sum constraint. This is the whole model-to-request half of
 `qci_optimize!`, split out so it can be exercised offline.
 
-Applies the contract documented on [`variable_domains`](@ref), and so raises that
-function's domain errors. Being network-free is what lets an unusable model fail
-with its own error rather than with a credentials or connectivity error; the
-level budget is checked separately by [`assert_level_budget`](@ref), because the
-allocation limit itself has to be read from the provider.
+Applies the contracts documented on [`variable_domains`](@ref) and
+[`continuous_sum_constraint`](@ref), and so raises their domain errors. Being
+network-free is what lets an unusable model fail with its own error rather than
+with a credentials or connectivity error; the integer level budget is checked
+separately by [`assert_level_budget`](@ref), because the allocation limit itself
+has to be read from the provider.
 
-Returns a named tuple `(; poly, file, num_levels)`.
+Returns a named tuple
+`(; job_type, poly, file, num_levels, sum_constraint)`; exactly one of
+`num_levels` and `sum_constraint` is non-`nothing`.
 """
 function qci_build_poly_request(
     solver::Optimizer{T},
@@ -242,21 +266,132 @@ function qci_build_poly_request(
     vars;
     file_name::Union{AbstractString,Nothing} = nothing,
 ) where {T}
-    domains    = variable_domains(solver, device, vars)
-    num_levels = get_levels(domains)
+    job_type = dirac3_job_type(solver, device, vars)
 
-    poly = rescale_variables(device.poly, vars, T[li for (li, _) in domains])
+    poly, num_levels, sum_constraint = if job_type == "sample-hamiltonian-integer"
+        configured_sum = MOI.get(solver, MOI.RawOptimizerAttribute("sum_constraint"))
+        if !isnothing(configured_sum)
+            error(
+                "DIRAC-3 `sum_constraint` selects the continuous simplex job, but " *
+                "this model has integer-valued or fixed variables. Unset " *
+                "`sum_constraint` for integer jobs, or use only continuous variables " *
+                "declared with lower bound zero.",
+            )
+        end
+
+        domains = variable_domains(solver, device, vars)
+        levels = get_levels(domains)
+        shifted = rescale_variables(device.poly, vars, T[li for (li, _) in domains])
+        (shifted, levels, nothing)
+    else
+        (device.poly, nothing, continuous_sum_constraint(solver, device, vars))
+    end
+
     file = qci_data_file(xi -> var_idx(device.varmap, var_inv(device.varmap, xi)), poly; file_name)
 
-    return (; poly, file, num_levels)
+    return (; job_type, poly, file, num_levels, sum_constraint)
+end
+
+@doc raw"""
+    dirac3_job_type(solver::Optimizer, device::DIRAC_3, vars)
+
+Choose the native DIRAC-3 job type from the model domains. Models are either
+entirely integer/fixed (`sample-hamiltonian-integer`) or entirely continuous
+(`sample-hamiltonian`). Mixed integer-continuous models are not a domain the
+device can sample and fail with an actionable error.
+"""
+function dirac3_job_type(solver::Optimizer, device::DIRAC_3, vars)
+    isempty(vars) && error("DIRAC-3 requires at least one model variable.")
+
+    integer = Bool[]
+    for xi in vars
+        vi = var_inv(device.varmap, xi)
+        push!(integer, vi in solver.integral || haskey(solver.fixed, vi))
+    end
+
+    all(integer) && return "sample-hamiltonian-integer"
+    all(!, integer) && return "sample-hamiltonian"
+
+    integer_indices = [
+        var_inv(device.varmap, xi).value for
+        (xi, is_integer) in zip(vars, integer) if is_integer
+    ]
+    continuous_indices = [
+        var_inv(device.varmap, xi).value for
+        (xi, is_integer) in zip(vars, integer) if !is_integer
+    ]
+    error(
+        "DIRAC-3 cannot mix integer/fixed and continuous variables in one job. " *
+        "Integer/fixed variable indices: $(integer_indices); continuous variable " *
+        "indices: $(continuous_indices). Use separate models with either the " *
+        "integer level domain or the continuous `sum_constraint` simplex.",
+    )
+end
+
+@doc raw"""
+    continuous_sum_constraint(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
+
+Validate and return the resource ``R`` for a native continuous DIRAC-3 simplex,
+``x_i \ge 0`` and ``\sum_i x_i = R``. Set `R` through the raw optimizer
+attribute `"sum_constraint"` (a finite real number in `[1, 10000]`).
+
+Every model variable must be continuous, carry a lower bound of exactly zero,
+and have no upper or fixed bound. Arbitrary boxes cannot be transformed into
+the device's one-resource simplex and are rejected rather than silently changed.
+"""
+function continuous_sum_constraint(
+    solver::Optimizer{T},
+    device::DIRAC_3{T},
+    vars,
+) where {T}
+    resource = MOI.get(solver, MOI.RawOptimizerAttribute("sum_constraint"))
+    isnothing(resource) && error(
+        "Continuous DIRAC-3 variables require the raw optimizer attribute " *
+        "`sum_constraint`, which defines the native simplex `sum(x) = R`. Set " *
+        "it to a finite value in [1, 10000].",
+    )
+
+    for xi in vars
+        vi = var_inv(device.varmap, xi)
+
+        if vi in solver.integral || haskey(solver.fixed, vi)
+            error(
+                "Continuous DIRAC-3 jobs require every variable to be continuous, " *
+                "but variable index $(vi.value) is integer-valued or fixed.",
+            )
+        end
+
+        if !haskey(solver.lower, vi) || !iszero(solver.lower[vi])
+            bound = get(solver.lower, vi, nothing)
+            error(
+                "Continuous DIRAC-3 variable index $(vi.value) must have lower " *
+                "bound 0 because the native simplex requires `x_i >= 0`; got " *
+                "$(repr(bound)). Declare it as `@variable(model, x >= 0)`.",
+            )
+        end
+
+        if haskey(solver.upper, vi)
+            error(
+                "Continuous DIRAC-3 variable index $(vi.value) has upper bound " *
+                "$(solver.upper[vi]), but the native domain is the simplex " *
+                "`x_i >= 0, sum(x) = R` and does not accept per-variable boxes. " *
+                "Remove the upper bound and set the `sum_constraint` optimizer " *
+                "attribute instead.",
+            )
+        end
+    end
+
+    return convert(T, resource)
 end
 
 @doc raw"""
     variable_domains(solver::Optimizer{T}, device::DIRAC_3{T}, vars) where {T}
 
-Return the integer domain `(lᵢ, uᵢ)` that DIRAC-3 samples for each variable in
-`vars`, in the order given, validating the model against what the device can
-represent.
+Return the integer domain `(lᵢ, uᵢ)` that a DIRAC-3
+`sample-hamiltonian-integer` job samples for each variable in `vars`, in the
+order given, validating the model against what that job type can represent.
+Continuous models use the separate [`continuous_sum_constraint`](@ref)
+contract and are not passed to this function by the production path.
 
 DIRAC-3 receives `sample-hamiltonian-integer` jobs, whose variable `i` takes
 the `num_levelsᵢ` consecutive integer values `0, 1, …, num_levelsᵢ - 1`. The
@@ -312,9 +447,9 @@ function variable_domain(solver::Optimizer{T}, device::DIRAC_3{T}, xi::PolyVar) 
         error(
             "DIRAC-3 samples integer-valued variables only, but variable index " *
             "$(vi.value) is continuous. Declare it as `Int` or `Bin`, or fix it to a " *
-            "single value. Continuous DIRAC-3 jobs use the `sample-hamiltonian` job " *
-            "type, whose simplex `sum_constraint` domain is not expressible as " *
-            "variable bounds, and QCIOpt does not submit it.",
+            "single value. `variable_domains` describes only the integer job; " *
+            "continuous DIRAC-3 models instead use the `sum_constraint` simplex " *
+            "validated by `continuous_sum_constraint`.",
         )
     end
 
@@ -393,29 +528,40 @@ end
 @doc raw"""
     readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
 
-Map provider sample points back to the original variable domain (adding each
-variable's transformed lower bound, see [`variable_domains`](@ref)) and
-recompute objective values from the stored polynomial, restoring the original
-model's objective for `MAX_SENSE` models. Returns the samples ordered
-best-first for the given sense.
+Map provider sample points back to the original variable domain and recompute
+objective values from the stored polynomial, restoring the original model's
+objective for `MAX_SENSE` models. Integer-qudit samples add each variable's
+transformed lower bound (see [`variable_domains`](@ref)); continuous simplex
+samples already use the model coordinates and need no inverse transformation.
+Returns the samples ordered best-first for the given sense.
 """
 function readjust_poly_values(solver::Optimizer{T}, device::DIRAC_3{T}, vars, samples::Vector{Sample{T,T}}, sense) where {T}
     adjusted_samples = sizehint!(Sample{T,T}[], length(samples))
 
-    # Inverts the substitution `rescale_variables` applied, so both must read
-    # the same lower bound.
-    domains = variable_domains(solver, device, vars)
+    job_type = dirac3_job_type(solver, device, vars)
+    domains = if job_type == "sample-hamiltonian-integer"
+        # Inverts the substitution `rescale_variables` applied, so both must
+        # read the same lower bound.
+        variable_domains(solver, device, vars)
+    else
+        continuous_sum_constraint(solver, device, vars)
+        nothing
+    end
 
     for sample in samples
         point = Vector{T}(undef, length(vars))
         x     = Vector{PolyVar}(undef, length(vars))
 
-        for (xi, (li, _)) in zip(vars, domains)
+        for (i, xi) in enumerate(vars)
             vi = var_inv(device.varmap, xi)
-            i  = var_idx(device.varmap, vi)
+            j  = var_idx(device.varmap, vi)
 
-            point[i] = sample.point[i] + li
-            x[i]     = xi
+            point[j] = if isnothing(domains)
+                sample.point[j]
+            else
+                sample.point[j] + domains[i][1]
+            end
+            x[j] = xi
         end
 
         # `device.poly` stores the minimization form, which is the negated

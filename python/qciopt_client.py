@@ -411,6 +411,26 @@ class OptimizationClient:
 
             problem_name = "quadratic_unconstrained_binary_optimization"
             problem_config = {"qubo_file_id": qubo_file_id}
+        elif job_type == "sample-hamiltonian":
+            if device_type not in {"dirac-3", "dirac-3_normalized_qudit"}:
+                raise ValueError("sample-hamiltonian is only supported on dirac-3")
+            if bool(hamiltonian_file_id) == bool(polynomial_file_id):
+                raise AssertionError(
+                    "exactly one of hamiltonian_file_id or polynomial_file_id is required"
+                )
+
+            device_type = "dirac-3_normalized_qudit"
+            if "sum_constraint" in job_params:
+                device_config["sum_constraint"] = job_params["sum_constraint"]
+            if "relaxation_schedule" in job_params:
+                device_config["relaxation_schedule"] = job_params["relaxation_schedule"]
+
+            problem_name = "normalized_qudit_hamiltonian_optimization"
+            problem_config = (
+                {"hamiltonian_file_id": hamiltonian_file_id}
+                if hamiltonian_file_id
+                else {"polynomial_file_id": polynomial_file_id}
+            )
         elif job_type == "sample-hamiltonian-integer":
             if device_type not in {"dirac-3", "dirac-3_qudit"}:
                 raise ValueError(

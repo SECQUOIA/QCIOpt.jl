@@ -17,6 +17,7 @@ import MathOptInterface as MOI
     include("moi_result_semantics.jl")
     include("provider_metadata.jl")
     include("dirac3_bounds.jl")
+    include("dirac3_continuous.jl")
     include("moi_capabilities.jl")
 
     if lowercase(get(ENV, "QCI_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")
