@@ -287,7 +287,12 @@ function qci_build_poly_request(
         (device.poly, nothing, continuous_sum_constraint(solver, device, vars))
     end
 
-    file = qci_data_file(xi -> var_idx(device.varmap, var_inv(device.varmap, xi)), poly; file_name)
+    file = qci_data_file(
+        xi -> var_idx(device.varmap, var_inv(device.varmap, xi)),
+        poly;
+        file_name,
+        num_variables = length(vars),
+    )
 
     return (; job_type, poly, file, num_levels, sum_constraint)
 end

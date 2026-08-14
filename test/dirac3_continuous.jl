@@ -111,6 +111,46 @@
         end
     end
 
+    @testset "Declared model arity survives sparse objectives" begin
+        model = MOI.Utilities.Model{Float64}()
+        x = MOI.add_variables(model, 2)
+        for xi in x
+            MOI.add_constraint(model, xi, MOI.GreaterThan(0.0))
+        end
+
+        # Minimize x₁ on x₁ + x₂ = 2. The second variable is absent from the
+        # polynomial but remains part of the native simplex, so the unique
+        # optimum is (0, 2), not the one-variable point x₁ = 2.
+        f = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x[1])], 0.0)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        (; solver, device, vars) = load_continuous(model)
+        request = QCIOpt.qci_build_poly_request(solver, device, vars)
+        config = request.file["file_config"]["polynomial"]
+
+        @test config["num_variables"] == 2
+        @test config["data"] == [Dict{String,Any}("idx" => [1], "val" => 1.0)]
+
+        provider_samples = [
+            QCIOpt.Sample{Float64,Float64}([2.0, 0.0], 2.0, 1),
+            QCIOpt.Sample{Float64,Float64}([0.0, 2.0], 0.0, 3),
+        ]
+        solution = QCIOpt.Solution{Float64,Float64}(
+            provider_samples,
+            Dict{String,Any}("status" => "COMPLETED"),
+        )
+
+        @test QCIOpt.qci_store_results!(solver, device, model, vars, solution) === nothing
+        @test MOI.get(solver, MOI.ResultCount()) == 2
+        @test MOI.get(solver, MOI.VariablePrimal(1), x[1]) == 0.0
+        @test MOI.get(solver, MOI.VariablePrimal(1), x[2]) == 2.0
+        @test MOI.get(solver, MOI.ObjectiveValue(1)) == 0.0
+        @test MOI.get(solver, MOI.VariablePrimal(2), x[1]) == 2.0
+        @test MOI.get(solver, MOI.VariablePrimal(2), x[2]) == 0.0
+        @test MOI.get(solver, MOI.ObjectiveValue(2)) == 2.0
+    end
+
     @testset "Returned samples already use model coordinates" begin
         for sense in (MOI.MIN_SENSE, MOI.MAX_SENSE)
             model = continuous_model(; sense)
