@@ -171,11 +171,16 @@ Live QCI smoke tests are optional. Set both `QCI_TOKEN` and
 $ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-In GitHub Actions, live QCI tests run from the manual and weekly scheduled
-`Live QCI` workflow. Weekly runs target DIRAC-3. Manual runs offer a `devices`
-choice for DIRAC-3, DIRAC-1, or both; the token's organization must have access
-to every selected device. Authorization errors on a selected device fail the
-run. The default CI workflow runs offline tests only, covering both devices.
+The default CI workflow runs offline tests for both devices and does not need
+a QCI account or `QCI_TOKEN`. In GitHub Actions, live QCI tests run only when
+manually requested through the `Live QCI` workflow. If the optional `QCI_TOKEN`
+secret is absent, the live test job is skipped with an explanation in the run
+summary. There are no scheduled live hardware runs.
+
+Manual live runs default to DIRAC-3 and offer a `devices` choice for DIRAC-1,
+DIRAC-3, or both. When a token is configured, its organization must have access
+to every selected device; authorization errors on a selected device fail the
+run.
 
 Local live runs default to both devices. To select only DIRAC-3, use:
 
