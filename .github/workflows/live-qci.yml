@@ -29,6 +29,7 @@ jobs:
         run: |
           if [ -z "$QCI_TOKEN" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Live QCI skipped::QCI_TOKEN is not configured; no hardware tests ran."
             echo "Live QCI tests skipped: the optional QCI_TOKEN secret is not configured. Offline CI does not require it." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "available=true" >> "$GITHUB_OUTPUT"
