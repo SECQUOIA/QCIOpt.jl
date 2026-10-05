@@ -161,16 +161,18 @@ end
     qci_get_allocations(; url = QCI_URL, api_token = qci_default_token(), silent = false)
 
 Return the `"allocations"` object reported by the QCI API for the configured
-token.
+token. Authentication and other provider errors are thrown to the caller.
 """
 function qci_get_allocations(;
     url::AbstractString = QCI_URL,
     api_token::Maybe{AbstractString} = qci_default_token(),
     silent::Bool = false,
 )
-    alloc = QCIOpt.qci_client(; url, api_token, silent) do client
+    response = qci_capture_client(; url, api_token, silent) do client
         return client.get_allocations() |> jl_object
     end
 
-    return alloc["allocations"]
+    isnothing(response.error) || throw(response.error)
+
+    return response.result["allocations"]
 end

@@ -123,4 +123,48 @@
     end
 
     @test QCIOpt.qci_parse_error(http_error) isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
+
+    @testset "Allocation authentication errors retain their cause" begin
+        # Replace only the remote client boundary: no live credential is
+        # required to exercise allocation conversion and HTTP-error parsing.
+        globals = QCIOpt.PythonCall.pydict()
+        globals["unauthorized"] = unauthorized
+        globals["raise_for_status"] = QCIOpt.qcic._raise_for_status
+        QCIOpt.PythonCall.pyexec(
+            """
+            class AllocationClient:
+                fail = False
+
+                def __init__(self, **kwargs):
+                    pass
+
+                def get_allocations(self):
+                    if self.fail:
+                        raise_for_status(unauthorized)
+                    return {"allocations": {"dirac": {"paid": False}}}
+            """,
+            globals,
+            globals,
+        )
+        original_client = QCIOpt.qcic.QciClient
+        try
+            client = globals["AllocationClient"]
+            QCIOpt.PythonCall.pysetattr(QCIOpt.qcic, "QciClient", client)
+            @test QCIOpt.qci_get_allocations(; api_token = "offline-token") ==
+                  Dict("dirac" => Dict("paid" => false))
+            @test QCIOpt.qci_is_free_tier(; api_token = "offline-token")
+
+            client.fail = true
+            for silent in (false, true)
+                @test_throws QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR QCIOpt.qci_get_allocations(;
+                    api_token = "offline-token", silent,
+                )
+                @test_throws QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR QCIOpt.qci_is_free_tier(;
+                    api_token = "offline-token", silent,
+                )
+            end
+        finally
+            QCIOpt.PythonCall.pysetattr(QCIOpt.qcic, "QciClient", original_client)
+        end
+    end
 end

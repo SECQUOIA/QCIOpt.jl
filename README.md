@@ -171,8 +171,30 @@ Live QCI smoke tests are optional. Set both `QCI_TOKEN` and
 $ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-In GitHub Actions, live QCI tests run from the manual and weekly scheduled
-`Live QCI` workflow. The default CI workflow runs offline tests only.
+The default CI workflow runs offline tests for both devices and does not need
+a QCI account or `QCI_TOKEN`. In GitHub Actions, live QCI tests run only when
+manually requested through the `Live QCI` workflow. If the optional `QCI_TOKEN`
+secret is absent, the live test job is skipped with an explanation in the run
+summary. There are no scheduled live hardware runs.
+
+Manual live runs default to DIRAC-3 and offer a `devices` choice for DIRAC-1,
+DIRAC-3, or both. When a token is configured, its organization must have access
+to every selected device; authorization errors on a selected device fail the
+run.
+
+Local live runs default to both devices. To select only DIRAC-3, use:
+
+```shell
+$ QCI_RUN_LIVE_TESTS=true QCI_LIVE_DEVICES=dirac-3 julia --project=. -e 'using Pkg; Pkg.test()'
+```
+
+`QCI_LIVE_DEVICES` accepts `dirac-1`, `dirac-3`, or a comma-separated list of
+both. An empty or unknown device selection is an error.
+
+Live runs check account access before submitting jobs. If they report
+`Unauthorized API Token`, renew the QCI credential and update the `QCI_TOKEN`
+Actions secret (or the local environment variable). A device-specific HTTP 403
+requires access to that device or an explicit selection of authorized devices.
 
 **Disclaimer:** _The QCI Optimization Wrapper for Julia is not officially supported by Quantum Computing Inc. If you are a commercial customer interested in official support for Julia from QCI, let them know!_
 

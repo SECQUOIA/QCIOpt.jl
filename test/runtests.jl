@@ -6,6 +6,7 @@ import MathOptInterface as MOI
 
 @testset "QCIOpt Tests" begin
     include("test_utils.jl")
+    include("live_config.jl")
     include("compat_metadata.jl")
     include("auth.jl")
     include("client_bridge.jl")
@@ -21,12 +22,18 @@ import MathOptInterface as MOI
     include("moi_capabilities.jl")
 
     if lowercase(get(ENV, "QCI_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")
+        devices = live_qci_devices()
+        QCIOpt.__auth__() || error("Live QCI tests require QCI_TOKEN to be set.")
+        @info "Running live QCI tests" devices
+        # Fail with the provider's authentication error before submitting jobs.
+        QCIOpt.qci_get_allocations(; silent = true)
         include("live_qci.jl")
         include("interface.jl")
         include("examples.jl")
 
+        test_live_qci(devices)
         test_interface()
-        test_examples()
+        test_examples(devices)
     else
         @info "Skipping live QCI service tests. Set QCI_RUN_LIVE_TESTS=true and QCI_TOKEN to enable them."
     end
