@@ -1,6 +1,15 @@
 name: Live QCI
 on:
   workflow_dispatch:
+    inputs:
+      devices:
+        description: QCI devices authorized for the CI token
+        type: choice
+        default: dirac-3
+        options:
+          - dirac-3
+          - dirac-1
+          - dirac-1,dirac-3
   schedule:
     - cron: '17 8 * * 0'
 permissions:
@@ -33,3 +42,5 @@ jobs:
         env:
           QCI_TOKEN: ${{ secrets.QCI_TOKEN }}
           QCI_RUN_LIVE_TESTS: true
+          # Scheduled runs exercise DIRAC-3; DIRAC-1 requires separate access.
+          QCI_LIVE_DEVICES: ${{ inputs.devices || 'dirac-3' }}

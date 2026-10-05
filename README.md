@@ -172,7 +172,19 @@ $ QCI_RUN_LIVE_TESTS=true julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
 In GitHub Actions, live QCI tests run from the manual and weekly scheduled
-`Live QCI` workflow. The default CI workflow runs offline tests only.
+`Live QCI` workflow. Weekly runs target DIRAC-3. Manual runs offer a `devices`
+choice for DIRAC-3, DIRAC-1, or both; the token's organization must have access
+to every selected device. Authorization errors on a selected device fail the
+run. The default CI workflow runs offline tests only, covering both devices.
+
+Local live runs default to both devices. To select only DIRAC-3, use:
+
+```shell
+$ QCI_RUN_LIVE_TESTS=true QCI_LIVE_DEVICES=dirac-3 julia --project=. -e 'using Pkg; Pkg.test()'
+```
+
+`QCI_LIVE_DEVICES` accepts `dirac-1`, `dirac-3`, or a comma-separated list of
+both. An empty or unknown device selection is an error.
 
 **Disclaimer:** _The QCI Optimization Wrapper for Julia is not officially supported by Quantum Computing Inc. If you are a commercial customer interested in official support for Julia from QCI, let them know!_
 
