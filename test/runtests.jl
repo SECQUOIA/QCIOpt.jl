@@ -25,6 +25,8 @@ import MathOptInterface as MOI
         devices = live_qci_devices()
         QCIOpt.__auth__() || error("Live QCI tests require QCI_TOKEN to be set.")
         @info "Running live QCI tests" devices
+        # Fail with the provider's authentication error before submitting jobs.
+        QCIOpt.qci_get_allocations(; silent = true)
         include("live_qci.jl")
         include("interface.jl")
         include("examples.jl")

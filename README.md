@@ -186,6 +186,11 @@ $ QCI_RUN_LIVE_TESTS=true QCI_LIVE_DEVICES=dirac-3 julia --project=. -e 'using P
 `QCI_LIVE_DEVICES` accepts `dirac-1`, `dirac-3`, or a comma-separated list of
 both. An empty or unknown device selection is an error.
 
+Live runs check account access before submitting jobs. If they report
+`Unauthorized API Token`, renew the QCI credential and update the `QCI_TOKEN`
+Actions secret (or the local environment variable). A device-specific HTTP 403
+requires access to that device or an explicit selection of authorized devices.
+
 **Disclaimer:** _The QCI Optimization Wrapper for Julia is not officially supported by Quantum Computing Inc. If you are a commercial customer interested in official support for Julia from QCI, let them know!_
 
 **Note**: _If you are using [QCIOpt.jl](https://github.com/SECQUOIA/QCIOpt.jl) in your project, we recommend you to include the `.CondaPkg` entry in your `.gitignore` file. The `PythonCall` module will place a lot of files in this folder when building its Python environment._
