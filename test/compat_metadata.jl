@@ -117,7 +117,7 @@ import Pkg
     end
 
     function uses_action_major_at_least(text, action, minimum_major)
-        pattern = Regex("(?mi)^\\s*(?:-\\s*)?uses:\\s*" * action * "@v(\\d+)\\s*\$")
+        pattern = Regex("(?mi)^\\s*(?:-\\s*)?uses:\\s*" * action * "@v(\\d+)(?:\\.\\d+){0,2}\\s*\$")
         return any(eachmatch(pattern, text)) do matched
             parse(Int, matched.captures[1]) >= minimum_major
         end
@@ -142,6 +142,7 @@ import Pkg
     @test occursin("Pkg.add(url=\"https://github.com/JuliaQUBO/DWave.jl\")", dwave_canary)
 
     @test uses_action_major_at_least("  uses: actions/checkout@v7\n", "actions/checkout", 6)
+    @test uses_action_major_at_least("  uses: actions/checkout@v7.0.1\n", "actions/checkout", 6)
     @test !uses_action_major_at_least("  uses: actions/checkout@v5\n", "actions/checkout", 6)
     @test !uses_action_major_at_least("  uses: actions/checkout@latest\n", "actions/checkout", 6)
 
@@ -174,8 +175,8 @@ import Pkg
 
     docs_build_step = workflow_step(docs, "Build docs")
     docs_deploy_step = workflow_step(docs, "Build and deploy docs")
-    docs_cleanup_delete_step = workflow_step(docscleanup, "Delete preview and history")
-    docs_cleanup_push_step = workflow_step(docscleanup, "Push changes")
+    docs_cleanup_guard_step = workflow_step(docscleanup, "Verify PR is closed")
+    docs_cleanup_delete_step = workflow_step(docscleanup, "Delete preview")
     @test !isempty(docs_build_step)
     @test occursin("if: github.event_name == 'pull_request'", docs_build_step)
     @test occursin(r"(?m)^\s*run:\s*julia --project=docs docs/make\.jl\s*$", docs_build_step)
@@ -187,12 +188,19 @@ import Pkg
     @test occursin("GITHUB_TOKEN", docs_deploy_step)
     @test !occursin("QCI_TOKEN", docs)
     @test !isempty(docs_cleanup_delete_step)
-    @test occursin("id: cleanup", docs_cleanup_delete_step)
-    @test occursin("if [ ! -d \"previews/PR\$PRNUM\" ]; then", docs_cleanup_delete_step)
-    @test occursin("deleted=false", docs_cleanup_delete_step)
-    @test occursin("deleted=true", docs_cleanup_delete_step)
-    @test !isempty(docs_cleanup_push_step)
-    @test occursin("if: steps.cleanup.outputs.deleted == 'true'", docs_cleanup_push_step)
+    @test !isempty(docs_cleanup_guard_step)
+    @test occursin("test \"\$pr_state\" = closed", docs_cleanup_guard_step)
+    @test occursin("git rm -r --ignore-unmatch -- \"previews/PR\$PRNUM\"", docs_cleanup_delete_step)
+    @test occursin("if git diff --cached --quiet; then", docs_cleanup_delete_step)
+    @test occursin("git push origin HEAD:gh-pages", docs_cleanup_delete_step)
+    @test !occursin("--force", docscleanup)
+    @test !occursin("--orphan", docscleanup)
+    @test findfirst("Verify PR is closed", docscleanup) < findfirst("Checkout gh-pages branch", docscleanup)
+    for publisher in (docs, docscleanup)
+        @test occursin(r"(?m)^\s*group: documentation-publishing\s*$", publisher)
+        @test occursin(r"(?m)^\s*cancel-in-progress: false\s*$", publisher)
+        @test occursin(r"(?m)^\s*queue: max\s*$", publisher)
+    end
 
     dependabot = read(joinpath(@__DIR__, "..", ".github", "dependabot.yml"), String)
     ci_runtest_step = workflow_uses_action_step(ci, "julia-actions/julia-runtest", 1)
