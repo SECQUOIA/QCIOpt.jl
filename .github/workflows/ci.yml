@@ -77,7 +77,7 @@ jobs:
             Pkg.develop(path=pwd())
             Pkg.add(PackageSpec(
                 url="https://github.com/JuliaQUBO/DWave.jl",
-                rev="065b744147d86cb02aa28eb7ce4574544df5c7c9",
+                rev="4fcaf41b29c3504d39bd0fd78b0fba82f36adc80",
             ))
             include(joinpath(pwd(), "test", "dwave_coexistence.jl"))
           '

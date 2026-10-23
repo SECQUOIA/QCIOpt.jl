@@ -131,6 +131,7 @@ import Pkg
     @test has_ci_matrix_entry("1.10", "windows-latest")
     @test has_ci_matrix_entry("1", "windows-latest")
     @test occursin("QCIOpt + DWave coexistence", ci)
+    @test occursin("rev=\"4fcaf41b29c3504d39bd0fd78b0fba82f36adc80\"", ci)
     @test occursin("dwave_coexistence.jl", ci)
     @test occursin("Python bridge", ci)
     @test occursin("pytest", ci)
