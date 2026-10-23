@@ -1,4 +1,10 @@
 
+@doc raw"""
+    qci_upload_file(file; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Upload a QCI problem file and return its `"file_id"`. Authentication and other
+parsed provider errors are thrown to the caller.
+"""
 function qci_upload_file(file; url = QCI_URL, api_token = qci_default_token(), silent = false)
     response = qci_client(; url, api_token, silent) do client
         client.upload_file(; file = py_object(file)) |> jl_object

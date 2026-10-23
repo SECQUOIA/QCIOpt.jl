@@ -74,7 +74,9 @@ end
     qci_auth_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
 
 Create a QCI authentication client, or run `callback` with one. The callback
-form returns the callback result after applying QCI error parsing.
+form returns the callback result and throws any parsed QCI provider error
+(unparsed exceptions are rethrown). Use [`qci_capture_auth_client`](@ref) to
+inspect captured output and parsed provider errors without throwing.
 """
 function qci_auth_client end
 
@@ -87,6 +89,12 @@ function qci_auth_client(;
     return qcic.auth.client.AuthClient(; url, api_token)
 end
 
+@doc raw"""
+    qci_capture_auth_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Run `callback` with a QCI authentication client through [`qci_client_wrapper`](@ref),
+returning `(; result, output, error)` without throwing parsed QCI provider errors.
+"""
 function qci_capture_auth_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
@@ -106,6 +114,8 @@ function qci_auth_client(
 )
     response = qci_capture_auth_client(callback; url, api_token, silent)
 
+    isnothing(response.error) || throw(response.error)
+
     return response.result
 end
 
@@ -114,7 +124,9 @@ end
     qci_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
 
 Create a QCI optimization client, or run `callback` with one. The callback form
-returns the callback result after applying QCI error parsing.
+returns the callback result and throws any parsed QCI provider error (unparsed
+exceptions are rethrown). Use [`qci_capture_client`](@ref) to inspect captured
+output and parsed provider errors without throwing.
 
 ## Example
 
@@ -135,6 +147,12 @@ function qci_client(;
     return qcic.QciClient(; url, api_token)
 end
 
+@doc raw"""
+    qci_capture_client(callback; url = QCI_URL, api_token = qci_default_token(), silent = false)
+
+Run `callback` with a QCI optimization client through [`qci_client_wrapper`](@ref),
+returning `(; result, output, error)` without throwing parsed QCI provider errors.
+"""
 function qci_capture_client(
     callback::Function;
     url::AbstractString                      = QCI_URL,
@@ -154,6 +172,8 @@ function qci_client(
 )
     response = qci_capture_client(callback; url, api_token, silent)
 
+    isnothing(response.error) || throw(response.error)
+
     return response.result
 end
 
@@ -168,11 +188,9 @@ function qci_get_allocations(;
     api_token::Maybe{AbstractString} = qci_default_token(),
     silent::Bool = false,
 )
-    response = qci_capture_client(; url, api_token, silent) do client
+    response = qci_client(; url, api_token, silent) do client
         return client.get_allocations() |> jl_object
     end
 
-    isnothing(response.error) || throw(response.error)
-
-    return response.result["allocations"]
+    return response["allocations"]
 end

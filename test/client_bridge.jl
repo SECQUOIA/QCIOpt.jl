@@ -1,3 +1,5 @@
+using Suppressor: @capture_out
+
 @testset "QCI client compatibility bridge" begin
     bridge_version = "qciopt-bridge-$(pkgversion(QCIOpt))"
 
@@ -124,47 +126,179 @@
 
     @test QCIOpt.qci_parse_error(http_error) isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
 
-    @testset "Allocation authentication errors retain their cause" begin
+    @testset "Provider errors are preserved across client and job operations" begin
         # Replace only the remote client boundary: no live credential is
-        # required to exercise allocation conversion and HTTP-error parsing.
+        # required to exercise response conversion, stdout capture, and
+        # HTTP-error parsing across allocation, upload, build, process, and auth.
         globals = QCIOpt.PythonCall.pydict()
         globals["unauthorized"] = unauthorized
         globals["raise_for_status"] = QCIOpt.qcic._raise_for_status
         QCIOpt.PythonCall.pyexec(
             """
-            class AllocationClient:
+            class StubClient:
                 fail = False
 
                 def __init__(self, **kwargs):
                     pass
 
-                def get_allocations(self):
+                def _step(self, label, payload):
+                    print(f"{label} progress")
                     if self.fail:
                         raise_for_status(unauthorized)
-                    return {"allocations": {"dirac": {"paid": False}}}
+                    return payload
+
+                def get_allocations(self):
+                    return self._step("allocations", {"allocations": {"dirac": {"paid": False}}})
+
+                def upload_file(self, *, file):
+                    return self._step("upload", {"file_id": "stub-file-id"})
+
+                def build_job_body(self, **kwargs):
+                    return self._step("build", {"job_submission": {"stub": True}})
+
+                def process_job(self, **kwargs):
+                    return self._step("process", {"job_info": {"job_id": "stub-job-id"}})
+
+            class StubAuthClient:
+                fail = False
+
+                def __init__(self, **kwargs):
+                    pass
+
+                def post_access_tokens(self):
+                    print("auth progress")
+                    if self.fail:
+                        raise_for_status(unauthorized)
+                    return {"access_token": "stub-access-token"}
             """,
             globals,
             globals,
         )
         original_client = QCIOpt.qcic.QciClient
+        original_auth_client = QCIOpt.qcic.auth.client.AuthClient
         try
-            client = globals["AllocationClient"]
+            client = globals["StubClient"]
+            auth_client = globals["StubAuthClient"]
             QCIOpt.PythonCall.pysetattr(QCIOpt.qcic, "QciClient", client)
-            @test QCIOpt.qci_get_allocations(; api_token = "offline-token") ==
-                  Dict("dirac" => Dict("paid" => false))
-            @test QCIOpt.qci_is_free_tier(; api_token = "offline-token")
+            QCIOpt.PythonCall.pysetattr(QCIOpt.qcic.auth.client, "AuthClient", auth_client)
+
+            for silent in (false, true)
+                displayed = @capture_out begin
+                    @test QCIOpt.qci_get_allocations(; api_token = "offline-token", silent) ==
+                          Dict("dirac" => Dict("paid" => false))
+                    @test QCIOpt.qci_is_free_tier(; api_token = "offline-token", silent)
+                    @test QCIOpt.qci_upload_file(qubo_file; api_token = "offline-token", silent) ==
+                          "stub-file-id"
+                    @test QCIOpt.qci_build_job_body(
+                        QCIOpt.DIRAC_1{Float64}();
+                        file_id = "stub-file-id",
+                        api_token = "offline-token",
+                        silent,
+                    ) == Dict("job_submission" => Dict("stub" => true))
+                    @test QCIOpt.qci_build_poly_job_body(
+                        "stub-file-id";
+                        api_token = "offline-token",
+                        device_type = "dirac-3",
+                        job_type = "sample-hamiltonian",
+                        sum_constraint = 1.0,
+                        silent,
+                    ) == Dict("job_submission" => Dict("stub" => true))
+                    @test QCIOpt.qci_process_job(
+                        Dict("job_submission" => Dict("stub" => true));
+                        api_token = "offline-token",
+                        silent,
+                    ) == Dict("job_info" => Dict("job_id" => "stub-job-id"))
+                    @test QCIOpt.qci_auth_client(; api_token = "offline-token", silent) do c
+                        c.post_access_tokens() |> QCIOpt.jl_object
+                    end == Dict("access_token" => "stub-access-token")
+                end
+                normalized = replace(displayed, "\r\n" => "\n")
+                expected_out = string(
+                    "allocations progress\n",
+                    "allocations progress\n",
+                    "upload progress\n",
+                    "build progress\n",
+                    "build progress\n",
+                    "process progress\n",
+                    "auth progress\n",
+                )
+                @test normalized == (silent ? "" : expected_out)
+            end
 
             client.fail = true
+            auth_client.fail = true
             for silent in (false, true)
-                @test_throws QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR QCIOpt.qci_get_allocations(;
-                    api_token = "offline-token", silent,
+                captured = QCIOpt.qci_capture_client(; api_token = "offline-token", silent = true) do c
+                    c.upload_file(; file = QCIOpt.py_object(qubo_file))
+                end
+                @test isnothing(captured.result)
+                @test captured.error isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
+                @test replace(captured.output[], "\r\n" => "\n") == "upload progress\n"
+
+                captured_auth = QCIOpt.qci_capture_auth_client(; api_token = "offline-token", silent = true) do c
+                    c.post_access_tokens()
+                end
+                @test isnothing(captured_auth.result)
+                @test captured_auth.error isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
+                @test replace(captured_auth.output[], "\r\n" => "\n") == "auth progress\n"
+
+                operations = (
+                    ("allocations", () -> QCIOpt.qci_get_allocations(; api_token = "offline-token", silent)),
+                    ("allocations", () -> QCIOpt.qci_is_free_tier(; api_token = "offline-token", silent)),
+                    ("upload", () -> QCIOpt.qci_upload_file(qubo_file; api_token = "offline-token", silent)),
+                    (
+                        "build",
+                        () -> QCIOpt.qci_build_job_body(
+                            QCIOpt.DIRAC_1{Float64}();
+                            file_id = "stub-file-id",
+                            api_token = "offline-token",
+                            silent,
+                        ),
+                    ),
+                    (
+                        "build",
+                        () -> QCIOpt.qci_build_poly_job_body(
+                            "stub-file-id";
+                            api_token = "offline-token",
+                            device_type = "dirac-3",
+                            job_type = "sample-hamiltonian",
+                            sum_constraint = 1.0,
+                            silent,
+                        ),
+                    ),
+                    (
+                        "process",
+                        () -> QCIOpt.qci_process_job(
+                            Dict("job_submission" => Dict("stub" => true));
+                            api_token = "offline-token",
+                            silent,
+                        ),
+                    ),
+                    (
+                        "auth",
+                        () -> QCIOpt.qci_auth_client(; api_token = "offline-token", silent) do c
+                            c.post_access_tokens()
+                        end,
+                    ),
                 )
-                @test_throws QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR QCIOpt.qci_is_free_tier(;
-                    api_token = "offline-token", silent,
-                )
+
+                for (label, op) in operations
+                    err_ref = Ref{Any}(nothing)
+                    displayed = @capture_out begin
+                        try
+                            op()
+                        catch err
+                            err_ref[] = err
+                        end
+                    end
+                    @test err_ref[] isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
+                    normalized = replace(displayed, "\r\n" => "\n")
+                    @test normalized == (silent ? "" : "$(label) progress\n")
+                end
             end
         finally
             QCIOpt.PythonCall.pysetattr(QCIOpt.qcic, "QciClient", original_client)
+            QCIOpt.PythonCall.pysetattr(QCIOpt.qcic.auth.client, "AuthClient", original_auth_client)
         end
     end
 end
