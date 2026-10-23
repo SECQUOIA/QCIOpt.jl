@@ -1,4 +1,15 @@
-using Suppressor: @capture_out
+function _capture_stdout(f::Function)
+    original_stdout = stdout
+    out_rd, out_wr = redirect_stdout()
+    out_reader = @async read(out_rd, String)
+    try
+        f()
+    finally
+        redirect_stdout(original_stdout)
+        close(out_wr)
+    end
+    return fetch(out_reader)
+end
 
 @testset "QCI client compatibility bridge" begin
     bridge_version = "qciopt-bridge-$(pkgversion(QCIOpt))"
@@ -183,7 +194,7 @@ using Suppressor: @capture_out
             QCIOpt.PythonCall.pysetattr(QCIOpt.qcic.auth.client, "AuthClient", auth_client)
 
             for silent in (false, true)
-                displayed = @capture_out begin
+                displayed = _capture_stdout() do
                     @test QCIOpt.qci_get_allocations(; api_token = "offline-token", silent) ==
                           Dict("dirac" => Dict("paid" => false))
                     @test QCIOpt.qci_is_free_tier(; api_token = "offline-token", silent)
@@ -228,19 +239,27 @@ using Suppressor: @capture_out
             client.fail = true
             auth_client.fail = true
             for silent in (false, true)
-                captured = QCIOpt.qci_capture_client(; api_token = "offline-token", silent = true) do c
-                    c.upload_file(; file = QCIOpt.py_object(qubo_file))
+                local captured
+                captured_stdout = _capture_stdout() do
+                    captured = QCIOpt.qci_capture_client(; api_token = "offline-token", silent) do c
+                        c.upload_file(; file = QCIOpt.py_object(qubo_file))
+                    end
                 end
                 @test isnothing(captured.result)
                 @test captured.error isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
                 @test replace(captured.output[], "\r\n" => "\n") == "upload progress\n"
+                @test replace(captured_stdout, "\r\n" => "\n") == (silent ? "" : "upload progress\n")
 
-                captured_auth = QCIOpt.qci_capture_auth_client(; api_token = "offline-token", silent = true) do c
-                    c.post_access_tokens()
+                local captured_auth
+                captured_auth_stdout = _capture_stdout() do
+                    captured_auth = QCIOpt.qci_capture_auth_client(; api_token = "offline-token", silent) do c
+                        c.post_access_tokens()
+                    end
                 end
                 @test isnothing(captured_auth.result)
                 @test captured_auth.error isa QCIOpt.QCI_UNAUTHORIZED_API_TOKEN_ERROR
                 @test replace(captured_auth.output[], "\r\n" => "\n") == "auth progress\n"
+                @test replace(captured_auth_stdout, "\r\n" => "\n") == (silent ? "" : "auth progress\n")
 
                 operations = (
                     ("allocations", () -> QCIOpt.qci_get_allocations(; api_token = "offline-token", silent)),
@@ -284,7 +303,7 @@ using Suppressor: @capture_out
 
                 for (label, op) in operations
                     err_ref = Ref{Any}(nothing)
-                    displayed = @capture_out begin
+                    displayed = _capture_stdout() do
                         try
                             op()
                         catch err
