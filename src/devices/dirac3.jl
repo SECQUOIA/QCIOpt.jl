@@ -103,7 +103,7 @@ function qci_load!(solver::Optimizer{T}, device::DIRAC_3{T}, model::MOI.ModelLik
 
     copy_model_attributes!(solver, model)
 
-    device.poly = let p = parse_polynomial(model, device.varmap)
+    device.poly = let p = parse_polynomial(T, model, device.varmap)
         if MOI.get(model, MOI.ObjectiveSense()) === MOI.MAX_SENSE
             -p
         else

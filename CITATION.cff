@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "QCIOpt.jl: Quantum Computing Inc. Optimization Wrapper for JuMP"
+type: software
+authors:
+  - family-names: "Xavier"
+    given-names: "Pedro Maciel"
+  - family-names: "Bernal Neira"
+    given-names: "David E."
+repository-code: "https://github.com/SECQUOIA/QCIOpt.jl"
+url: "https://github.com/SECQUOIA/QCIOpt.jl"
+license: MIT
+version: 0.3.0
+date-released: "2026-10-26"
+
