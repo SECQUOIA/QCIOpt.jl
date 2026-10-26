@@ -295,6 +295,7 @@ import Pkg
         @test isempty(updates_for("julia", "/test"))
     end
 
+    @test isfile(joinpath(@__DIR__, "..", "CITATION.cff"))
     actions = only_update_for("github-actions", "/")
     @test scalar_value(actions, "interval") == "monthly"
 end

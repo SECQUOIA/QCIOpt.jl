@@ -8,7 +8,7 @@ Quantum Computing Inc. Optimization Wrapper for JuMP
 ```julia
 julia> import Pkg
 
-julia> Pkg.add(url="https://github.com/SECQUOIA/QCIOpt.jl", rev="v0.2.0")
+julia> Pkg.add(url="https://github.com/SECQUOIA/QCIOpt.jl", rev="v0.3.0")
 ```
 
 ## QCIOpt and DWave

@@ -28,8 +28,15 @@ device updates `MOI.supports` and `MOI.supports_constraint` immediately.
 | `MIN_SENSE` / `MAX_SENSE` | yes | yes |
 | `FEASIBILITY_SENSE` | no | no |
 
-DIRAC-1 accepts binary unconstrained quadratic models. DIRAC-3 has two distinct
-domain contracts. Without `"sum_constraint"`, bound declarations describe
+DIRAC-1 accepts binary unconstrained quadratic models. DIRAC-3 accepts
+`MOI.VariableIndex`, `MOI.ScalarAffineFunction`, and
+`MOI.ScalarQuadraticFunction` objectives through the MOI/JuMP optimizer
+interface; `MOI.ScalarNonlinearFunction` (and any other objective function type)
+is reported as unsupported by `MOI.supports` and rejected with
+`MOI.UnsupportedAttribute` at load/solve time. Higher-order `DynamicPolynomials`
+objectives can be formatted directly via `QCIOpt.qci_data_file`.
+
+DIRAC-3 has two distinct domain contracts. Without `"sum_constraint"`, bound declarations describe
 finite integer domains: each non-fixed variable must also be `Integer` or
 `ZeroOne`; `EqualTo` and a zero-width `Interval` represent a fixed single level.
 With `"sum_constraint" = R`, every variable must instead be continuous, have

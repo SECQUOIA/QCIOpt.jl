@@ -195,18 +195,27 @@ function MOI.supports(solver::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
     return qci_supports_objective(solver.device, F)
 end
 
-function parse_polynomial(model::MOI.ModelLike, vm::VarMap)
+function parse_polynomial(::Type{T}, model::MOI.ModelLike, vm::VarMap) where {T}
     F = MOI.get(model, MOI.ObjectiveFunctionType())
     f = MOI.get(model, MOI.ObjectiveFunction{F}())
 
-    return parse_polynomial(f, vm)
+    return parse_polynomial(T, f, vm)
 end
 
-function parse_polynomial(v::VI, vm::VarMap{VI,PolyVar})
-    p = PolyTerm{T}[var_map(vm, v)]
+parse_polynomial(model::MOI.ModelLike, vm::VarMap) =
+    parse_polynomial(Float64, model, vm)
+
+function parse_polynomial(::Type{T}, v::VI, vm::VarMap{VI,PolyVar}) where {T}
+    p = PolyTerm{T}[one(T) * var_map(vm, v)]
 
     return DP.polynomial(p)
 end
+
+parse_polynomial(v::VI, vm::VarMap{VI,PolyVar}) =
+    parse_polynomial(Float64, v, vm)
+
+parse_polynomial(::Type{T}, f::SAF{T}, vm::VarMap{VI,PolyVar}) where {T} =
+    parse_polynomial(f, vm)
 
 function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PolyVar}) where {T}
     p = sizehint!(PolyTerm{T}[f.constant], length(f.terms))
@@ -222,6 +231,9 @@ function parse_polynomial(f::SAF{T}, vm::VarMap{VI,PolyVar}) where {T}
 
     return DP.polynomial(p)
 end
+
+parse_polynomial(::Type{T}, f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T} =
+    parse_polynomial(f, vm)
 
 function parse_polynomial(f::SQF{T}, vm::VarMap{VI,PolyVar}) where {T}
     p = sizehint!(PolyTerm{T}[f.constant], length(f.affine_terms) + length(f.quadratic_terms))
@@ -282,12 +294,17 @@ function parse_qubo_matrix(f::SQF{T}, vm::VarMap{VI,Int}) where {T}
     return (Symmetric((Q + Q') / 2), f.constant)
 end
 
-function parse_polynomial(f::F, vm::VarMap{VI,PolyVar}) where {F<:MOI.AbstractFunction}
-    # TODO: Interpret Nonlinear function
-    error("Nonlinear Functions are still not supported.")
-
-    return nothing
+function parse_polynomial(::Type{T}, f::F, ::VarMap{VI,PolyVar}) where {T,F<:MOI.AbstractFunction}
+    throw(
+        MOI.UnsupportedAttribute(
+            MOI.ObjectiveFunction{F}(),
+            "DIRAC-3 supports VariableIndex, ScalarAffineFunction, and ScalarQuadraticFunction objectives; got $(F). Higher-order polynomial objectives can be formatted via `QCIOpt.qci_data_file`.",
+        ),
+    )
 end
+
+parse_polynomial(f::F, vm::VarMap{VI,PolyVar}) where {F<:MOI.AbstractFunction} =
+    parse_polynomial(Float64, f, vm)
 
 @doc raw"""
     retrieve_variable_bounds!(solver::Optimizer{T}, model::MOI.ModelLike) where {T}

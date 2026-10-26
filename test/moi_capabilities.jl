@@ -41,7 +41,43 @@ using Suppressor: @capture_out
             "offline-token",
         )
 
-        @test_throws MOI.UnsupportedAttribute MOI.optimize!(optimizer, model)
+        @test_throws MOI.UnsupportedAttribute{
+            MOI.ObjectiveFunction{MOI.VariableIndex},
+        } MOI.optimize!(optimizer, model)
+
+        # DIRAC-3 supports VariableIndex objectives and parses them with the
+        # optimizer's numeric type T.
+        dirac3_optimizer = QCIOpt.Optimizer()
+        dirac3_device = QCIOpt.DIRAC_3{Float64}()
+        vars = QCIOpt.qci_load!(dirac3_optimizer, dirac3_device, model)
+        @test length(vars) == 1
+        @test dirac3_device.poly([vars[1]] => [2.0]) == 2.0
+
+        # Both DIRAC-1 and DIRAC-3 reject ScalarNonlinearFunction with
+        # MOI.UnsupportedAttribute.
+        nl_model = MOI.Utilities.Model{Float64}()
+        y = MOI.add_variable(nl_model)
+        MOI.add_constraint(nl_model, y, MOI.ZeroOne())
+        nl_obj = MOI.ScalarNonlinearFunction(:^, Any[y, 3])
+        MOI.set(nl_model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(
+            nl_model,
+            MOI.ObjectiveFunction{MOI.ScalarNonlinearFunction}(),
+            nl_obj,
+        )
+
+        for device_type in ("dirac-1", "dirac-3")
+            nl_optimizer = QCIOpt.Optimizer()
+            MOI.set(nl_optimizer, QCIOpt.DeviceType(), device_type)
+            MOI.set(
+                nl_optimizer,
+                MOI.RawOptimizerAttribute("api_token"),
+                "offline-token",
+            )
+            @test_throws MOI.UnsupportedAttribute{
+                MOI.ObjectiveFunction{MOI.ScalarNonlinearFunction},
+            } MOI.optimize!(nl_optimizer, nl_model)
+        end
     end
 
     @testset "Device-specific constraint support" begin
