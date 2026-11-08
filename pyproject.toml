@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 88
-target-version = ["py38"]
+target-version = ["py311"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -8,7 +8,7 @@ testpaths = ["test/python"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py38"
+target-version = "py311"
 
 [tool.ruff.lint]
 # The bridge intentionally mirrors qci-client's local-time console timestamps,
