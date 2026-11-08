@@ -1,7 +1,7 @@
 channels = ["anaconda", "conda-forge"]
 
 [deps]
-python = ">=3.8,<=3.12"
+python = ">=3.11,<=3.12"
 requests = ""
 
 # CondaPkg is kept on the 0.2.x line because this environment file uses the
