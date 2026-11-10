@@ -125,10 +125,10 @@ end
 
 function qci_data_file(
     varmap::Function,
-    p::DP.Polynomial{_V,_M,T};
+    p::Poly{T};
     file_name::Union{AbstractString,Nothing} = nothing,
     num_variables::Union{Integer,Nothing} = nothing,
-) where {_V,_M,T}
+) where {T}
     indices = Vector{Int}[]
     values  = T[]
     degree  = DP.maxdegree(p)
@@ -160,8 +160,8 @@ function qci_data_file(
     return qci_data_file(indices, values; file_name, num_variables)
 end
 
-function qci_data_file(p::DP.Polynomial{T}; file_name::Union{AbstractString,Nothing} = nothing) where {T}
-    varmap = Dict{DP.Variable,Int}(x => i for (i, x) in enumerate(DP.variables(p)))
+function qci_data_file(p::Poly{T}; file_name::Union{AbstractString,Nothing} = nothing) where {T}
+    varmap = Dict{PolyVar,Int}(x => i for (i, x) in enumerate(DP.variables(p)))
 
     return qci_data_file(x -> varmap[x]::Int, p; file_name)
 end
