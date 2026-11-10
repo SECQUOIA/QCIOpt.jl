@@ -52,7 +52,7 @@ import Pkg
     @test version_spec_allows("QUBOTools", "0.15.0")
     @test occursin("Keep CondaPkg on 0.2.x", project_text)
     @test occursin("PythonCall 0.9", project_text)
-    @test condapkg["deps"]["python"] == ">=3.8,<=3.12"
+    @test condapkg["deps"]["python"] == ">=3.11,<=3.12"
     @test condapkg["deps"]["libffi"]["version"] == ">=3.4,<3.5"
     @test condapkg["deps"]["libffi"]["channel"] == "anaconda"
     @test !haskey(condapkg["pip"]["deps"], "qci-client")

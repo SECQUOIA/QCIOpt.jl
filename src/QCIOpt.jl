@@ -9,9 +9,17 @@ import DynamicPolynomials as DP
 
 const Maybe{T} = Union{T,Nothing}
 
-const PolyVar     = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
-const PolyTerm{T} = DP.Term{T,DP.Monomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}}
-const Poly{T}     = DP.Polynomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder},T}
+const PolyVar = DP.Variable{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
+const PolyTerm = if DP.Term isa UnionAll && DP.Term.body isa DataType
+    DP.Term
+else
+    DP.Term{T,DP.Monomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}} where {T}
+end
+const Poly = if DP.Polynomial isa UnionAll && DP.Polynomial.body isa DataType
+    DP.Polynomial
+else
+    DP.Polynomial{DP.Commutative{DP.CreationOrder},DP.Graded{DP.LexOrder}}
+end
 
 const MOIU    = MOI.Utilities
 const VI      = MOI.VariableIndex
