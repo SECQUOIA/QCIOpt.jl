@@ -19,7 +19,7 @@ QUBOTools = "60eb5b62-0a39-4ddc-84c5-97d2adff9319"
 # the documented Anaconda libffi workaround for PythonCall on Windows.
 CondaPkg = "0.2.24"
 Dates = "1.10"
-DynamicPolynomials = "0.6"
+DynamicPolynomials = "0.6, 0.7"
 JSON = "0.21, 1.6"
 LinearAlgebra = "1.10"
 # Keep a tested MOI lower bound while allowing the 1.x line.
